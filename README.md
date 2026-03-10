@@ -23,7 +23,7 @@
 
 ## Problem
 
-Scientific publications are growing exponentially — accelerated by LLM-assisted writing — yet peer review remains a manual bottleneck. 70% of researchers report failed replication attempts, and only 11-36% of high-profile findings are successfully reproduced. Existing tools (pre-registration, containerization, workflow managers) address whether research *could be* reproduced, but not whether it *has been*. As AI lowers the barrier to producing manuscripts, the gap between what is published and what is verifiable widens further. Unrecorded manual steps, implementation gaps, and missing provenance mean that even well-intentioned pipelines silently diverge from their published claims.
+Scientific publications are growing exponentially — accelerated by LLM-assisted writing — yet peer review remains a manual bottleneck. 70% of researchers report failed replication attempts, and only 11-36% of high-profile findings are successfully reproduced. Existing tools (pre-registration, containerization, workflow managers) address whether research *could be* reproduced, but not whether it *has been*.
 
 ## Solution
 
