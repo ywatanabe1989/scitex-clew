@@ -2,8 +2,10 @@ SciTeX CLEW - Hash-Based Reproducibility Verification
 ======================================================
 
 **SciTeX CLEW** provides hash-based reproducibility verification for scientific pipelines.
-It tracks file hashes across computational sessions and verifies that results are reproducible
-through DAG-based provenance chains.
+As LLM-assisted writing accelerates publication volumes, the gap between what is published
+and what is verifiable widens. Clew tracks file hashes across computational sessions and
+builds a **DAG — a structured, machine-readable logic representation of an entire research
+project** — enabling both human reviewers and AI agents to verify reproducibility programmatically.
 
 .. toctree::
    :maxdepth: 2

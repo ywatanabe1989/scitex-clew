@@ -23,11 +23,11 @@
 
 ## Problem
 
-70% of researchers report failed replication attempts, and only 11-36% of high-profile findings are successfully reproduced. Existing tools — pre-registration, containerization, workflow managers — address whether research *could be* reproduced, but not whether it *has been*. Unrecorded manual steps, implementation gaps, and missing provenance mean that even well-intentioned pipelines silently diverge from their published claims.
+Scientific publications are growing exponentially — accelerated by LLM-assisted writing — yet peer review remains a manual bottleneck. 70% of researchers report failed replication attempts, and only 11-36% of high-profile findings are successfully reproduced. Existing tools (pre-registration, containerization, workflow managers) address whether research *could be* reproduced, but not whether it *has been*. As AI lowers the barrier to producing manuscripts, the gap between what is published and what is verifiable widens further. Unrecorded manual steps, implementation gaps, and missing provenance mean that even well-intentioned pipelines silently diverge from their published claims.
 
 ## Solution
 
-Clew — named after the thread Ariadne gave Theseus to trace his path through the labyrinth — records SHA-256 hashes at every step your pipeline reads and writes, stored in a local SQLite database. It lets you:
+Clew — named after the thread Ariadne gave Theseus to trace his path through the labyrinth — records SHA-256 hashes at every step your pipeline reads and writes, stored in a local SQLite database. The resulting **DAG (directed acyclic graph) is a structured, machine-readable logic representation of an entire research project** — from raw data through processing scripts to final figures and manuscript claims — enabling both human reviewers and AI agents to verify reproducibility programmatically. It lets you:
 
 - **Verify** that outputs haven't changed since recording
 - **Trace** provenance chains from any file back to its source
