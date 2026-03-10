@@ -1,4 +1,4 @@
-"""Sphinx configuration for SciTeX CLEW documentation.
+"""Sphinx configuration for SciTeX Clew documentation.
 
 See https://www.sphinx-doc.org/en/master/usage/configuration.html
 """
@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath("../../src"))
 
 # -- Project information -----------------------------------------------------
 
-project = "SciTeX CLEW"
+project = "SciTeX Clew"
 copyright = "2024-2026, Yusuke Watanabe"
 author = "Yusuke Watanabe"
 
