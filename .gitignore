@@ -661,5 +661,8 @@ flycheck_*.el
 !docs/**/*.svg
 !src/scitex_clew/dag.png
 
+# Allow example output artifacts
+!examples/**_out/**
+
 ### Source: /home/ywatanabe/.git-templates/.gitignore-templates/Custom/SLURM.gitignore ###
 slurm_logs
