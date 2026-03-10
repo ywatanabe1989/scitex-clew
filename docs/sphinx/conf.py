@@ -1,4 +1,7 @@
-"""Sphinx configuration for SciTeX CLEW documentation."""
+"""Sphinx configuration for SciTeX CLEW documentation.
+
+See https://www.sphinx-doc.org/en/master/usage/configuration.html
+"""
 
 import os
 import sys
