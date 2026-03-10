@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scitex-clew"
+version = "0.1.0"
+description = "Hash-based reproducibility verification for scientific pipelines"
+readme = "README.md"
+license = "AGPL-3.0-only"
+requires-python = ">=3.10"
+authors = [
+    { name = "Yusuke Watanabe", email = "ywatanabe@alumni.u-tokyo.ac.jp" },
+]
+keywords = [
+    "reproducibility",
+    "verification",
+    "hash",
+    "dag",
+    "provenance",
+    "scitex",
+    "science",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = []
+
+[project.optional-dependencies]
+cli = [
+    "click>=8.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+mcp = [
+    "fastmcp>=2.0.0",
+]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "myst-parser>=2.0",
+    "sphinx-copybutton>=0.5",
+    "sphinx-autodoc-typehints>=1.25",
+]
+all = [
+    "click>=8.0.0",
+    "fastmcp>=2.0.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "myst-parser>=2.0",
+    "sphinx-copybutton>=0.5",
+    "sphinx-autodoc-typehints>=1.25",
+]
+
+[project.scripts]
+clew = "scitex_clew._cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ywatanabe1989/scitex-clew"
+Repository = "https://github.com/ywatanabe1989/scitex-clew"
+Documentation = "https://scitex-clew.readthedocs.io"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scitex_clew"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.scitex-linter]
+library_dirs = ["src", "tests", "examples"]
