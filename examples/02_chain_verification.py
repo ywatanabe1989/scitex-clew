@@ -12,11 +12,17 @@ Run this script to see:
 - Verification status of each step
 """
 
+from pathlib import Path
+
 import scitex_clew as clew
+
+OUT_DIR = Path(__file__).parent / "02_chain_verification_out"
 
 
 def main():
     """Run chain verification example."""
+    OUT_DIR.mkdir(exist_ok=True)
+
     print("Initializing example pipeline...")
     clew.init_examples("/tmp/clew_example")
     print()
@@ -56,6 +62,17 @@ def main():
         print(f"  Total Dependencies: {len(result.edges)}")
     else:
         print("  No dependencies tracked yet.")
+
+    # Save report
+    report_path = OUT_DIR / "chain_report.txt"
+    with open(report_path, "w") as f:
+        f.write(
+            f"DAG Status: {result.status.value if hasattr(result, 'status') else 'unknown'}\n"
+        )
+        f.write(
+            f"Verified: {result.is_verified if hasattr(result, 'is_verified') else 'unknown'}\n"
+        )
+    print(f"\nReport saved to: {report_path}")
 
     return 0
 

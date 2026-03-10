@@ -17,11 +17,17 @@ The output can be:
 - Visualized with https://mermaid.live
 """
 
+from pathlib import Path
+
 import scitex_clew as clew
+
+OUT_DIR = Path(__file__).parent / "03_mermaid_diagram_out"
 
 
 def main():
     """Run Mermaid diagram generation example."""
+    OUT_DIR.mkdir(exist_ok=True)
+
     print("Initializing example pipeline...")
     clew.init_examples("/tmp/clew_example")
     print()
@@ -38,24 +44,20 @@ def main():
         print("-" * 60)
         print(mermaid_code)
         print("-" * 60)
+
+        # Save mermaid file
+        mmd_path = OUT_DIR / "dag.mmd"
+        with open(mmd_path, "w") as f:
+            f.write(mermaid_code + "\n")
+        print(f"\nDiagram saved to: {mmd_path}")
         print()
         print("Usage:")
-        print("  1. Embed in GitHub Markdown:")
-        print("     ``` mermaid")
-        print("     <paste code above>")
-        print("     ```")
-        print()
-        print(
-            "  2. Render with mermaid-cli (requires: npm install -g @mermaid-js/mermaid-cli):"
-        )
-        print("     mmdc -i diagram.mmd -o diagram.png")
-        print()
+        print("  1. Embed in GitHub Markdown with ```mermaid ... ```")
+        print("  2. Render: mmdc -i dag.mmd -o dag.png")
         print("  3. View online at https://mermaid.live")
     else:
         print("No runs tracked yet.")
         print("Run '00_run_all.sh' in /tmp/clew_example to generate pipeline outputs.")
-        print()
-        print("Then run this script again to see the DAG diagram.")
 
     return 0
 

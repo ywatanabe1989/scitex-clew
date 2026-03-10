@@ -170,6 +170,29 @@ def start_server() -> None:
     mcp_server.run()
 
 
+@mcp.command("installation")
+def installation() -> None:
+    """Show installation instructions for MCP server integration."""
+    click.echo("Install scitex-clew with MCP support:")
+    click.echo()
+    click.echo("  pip install scitex-clew[mcp]")
+    click.echo()
+    click.echo("Add to your MCP client configuration:")
+    click.echo()
+    click.echo("  {")
+    click.echo('    "mcpServers": {')
+    click.echo('      "scitex-clew": {')
+    click.echo('        "command": "clew",')
+    click.echo('        "args": ["mcp", "start"]')
+    click.echo("      }")
+    click.echo("    }")
+    click.echo("  }")
+    click.echo()
+    click.echo("Verify with:")
+    click.echo("  clew mcp doctor")
+    click.echo("  clew mcp list-tools")
+
+
 @mcp.command("doctor")
 def doctor() -> None:
     """Check MCP server dependencies and configuration."""
