@@ -34,6 +34,16 @@ Clew — named after the thread Ariadne gave Theseus to trace his path through t
 - **Re-execute** scripts in a sandbox to confirm reproducibility
 - **Link** manuscript claims to the sessions that produced them
 
+### Three Verification Modes
+
+| Mode | Scope | API | Description |
+|------|-------|-----|-------------|
+| **Project** | Entire pipeline | `clew.dag(claims=True)` | Builds the full DAG from all registered claims and verifies every session in topological order. Answers: *"Is the whole project intact?"* |
+| **Files** | Specific outputs | `clew.dag(["output.csv"])` | Traces backward from target files through their dependency chain and verifies each session. Answers: *"Can I trust this specific file?"* |
+| **Claims** | Manuscript assertions | `clew.verify_claim("Fig 1")` | Verifies individual claims linked to source sessions. Answers: *"Is this figure/statistic still backed by the data?"* |
+
+Each mode supports both **cache verification** (millisecond hash comparison) and **re-run verification** (sandbox re-execution with `rerun_dag` / `rerun_claims`).
+
 ## Installation
 
 Requires Python >= 3.10. **Zero dependencies** — pure stdlib + sqlite3.

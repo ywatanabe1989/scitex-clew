@@ -24,6 +24,33 @@ Python API
    # Full DAG verification
    dag = clew.dag(["/path/to/target.csv"])
 
+Three Verification Modes
+------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 25 30 30
+
+   * - Mode
+     - Scope
+     - API
+     - Description
+   * - **Project**
+     - Entire pipeline
+     - ``clew.dag(claims=True)``
+     - Builds the full DAG from all registered claims and verifies every session. *"Is the whole project intact?"*
+   * - **Files**
+     - Specific outputs
+     - ``clew.dag(["output.csv"])``
+     - Traces backward from target files through their dependency chain. *"Can I trust this specific file?"*
+   * - **Claims**
+     - Manuscript assertions
+     - ``clew.verify_claim("Fig 1")``
+     - Verifies individual claims linked to source sessions. *"Is this figure still backed by the data?"*
+
+Each mode supports both **cache verification** (millisecond hash comparison) and
+**re-run verification** (sandbox re-execution via ``rerun_dag`` / ``rerun_claims``).
+
 CLI
 ---
 
