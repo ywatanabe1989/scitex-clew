@@ -1,10 +1,25 @@
-SciTeX CLEW - Hash-Based Reproducibility Verification
-======================================================
+SciTeX CLEW
+===========
 
-**SciTeX CLEW** provides hash-based reproducibility verification for scientific pipelines.
-It tracks file hashes across computational sessions and builds a **DAG — a structured,
-machine-readable logic representation of an entire research project** — enabling both
-human reviewers and AI agents to verify reproducibility programmatically.
+.. image:: _static/scitex-logo.png
+   :alt: SciTeX
+   :align: center
+   :width: 400px
+
+.. raw:: html
+
+   <p align="center"><b>Hash-based reproducibility verification for scientific pipelines</b></p>
+   <br>
+
+**Clew** — named after the thread Ariadne gave Theseus to trace his path through
+the labyrinth — records SHA-256 hashes at every computational step, building a
+**DAG** (directed acyclic graph) that serves two purposes:
+
+1. **Reproducibility verification** — confirm that outputs have not changed and
+   that every step in the pipeline remains intact.
+2. **Research logic comprehension** — visualize and navigate the structural
+   skeleton of a research project, from raw data through analysis to manuscript
+   claims.
 
 .. toctree::
    :maxdepth: 2
@@ -15,19 +30,23 @@ human reviewers and AI agents to verify reproducibility programmatically.
 
 .. toctree::
    :maxdepth: 2
+   :caption: Concepts
+
+   concepts
+   cli
+   mcp
+
+.. toctree::
+   :maxdepth: 2
    :caption: API Reference
 
    api/scitex_clew
 
-Key Features
-------------
+.. toctree::
+   :maxdepth: 2
+   :caption: Examples
 
-- **Hash Verification**: Track and verify file hashes across sessions
-- **DAG Provenance**: Build and verify dependency graphs
-- **Chain Verification**: Trace file lineage through processing chains
-- **Claim Tracking**: Link manuscript claims to source sessions
-- **MCP Integration**: FastMCP server for AI-assisted verification
-- **CLI**: Command-line interface for verification workflows
+   examples
 
 Quick Example
 -------------
@@ -36,17 +55,26 @@ Quick Example
 
    import scitex_clew as clew
 
-   # Verify a session
-   result = clew.run("2025Y-11M-18D-09h12m03s_HmH5")
-   print(result.is_verified)
+   # Git-status-like overview
+   clew.status()
 
-   # Trace provenance chain
-   chain_result = clew.chain("/path/to/output.csv")
-   print(chain_result.status)
+   # Verify a run (hash check)
+   result = clew.run("session_20250301_143022")
 
-   # Full DAG verification
-   dag_result = clew.dag(["/path/to/final_output.csv"])
-   print(dag_result.is_verified)
+   # Trace a file's provenance chain
+   chain = clew.chain("output/figure.png")
+
+   # Verify the full DAG
+   dag_result = clew.dag(["output/figure.png"])
+
+.. figure:: _static/dag.png
+   :alt: DAG verification example
+   :align: center
+   :width: 80%
+
+   **Figure 1.** Example DAG visualization. Green nodes indicate verified sessions;
+   red nodes indicate hash mismatches. Clew traces the dependency graph backward
+   from target files to raw data sources.
 
 Indices and tables
 ==================
