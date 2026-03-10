@@ -27,12 +27,18 @@ Scientific publications are growing exponentially — accelerated by LLM-assiste
 
 ## Solution
 
-Clew — named after the thread Ariadne gave Theseus to trace his path through the labyrinth — records SHA-256 hashes at every step your pipeline reads and writes, stored in a local SQLite database. The resulting **DAG (directed acyclic graph) is a structured, machine-readable logic representation of an entire research project** — from raw data through processing scripts to final figures and manuscript claims — enabling both human reviewers and AI agents to verify reproducibility programmatically. It lets you:
+Clew — named after the thread Ariadne gave Theseus to trace his path through the labyrinth — records SHA-256 hashes at every computational step, building a **DAG (directed acyclic graph)** that serves two purposes:
 
-- **Verify** that outputs haven't changed since recording
+1. **Reproducibility verification** — confirm that outputs remain unchanged and that every step in the pipeline is intact.
+2. **Research logic comprehension** — visualize and navigate the structural skeleton of a research project, from raw data through analysis to manuscript claims.
+
+The DAG is a structured, machine-readable representation of an entire research project — enabling both human reviewers and AI agents to inspect, verify, and understand the logic programmatically. It lets you:
+
+- **Verify** that outputs remain consistent with recorded hashes
 - **Trace** provenance chains from any file back to its source
+- **Visualize** the structural logic of a research project as a navigable graph
 - **Re-execute** scripts in a sandbox to confirm reproducibility
-- **Link** manuscript claims to the sessions that produced them
+- **Link** manuscript claims to the computational sessions that produced them
 
 ### Five Node Classes
 
