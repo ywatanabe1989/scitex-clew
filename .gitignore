@@ -656,9 +656,10 @@ flycheck_*.el
 !.gitkeep
 !**/.gitkeep
 
-# Allow doc/branding images
+# Allow doc/branding images and RTD requirements
 !docs/**/*.png
 !docs/**/*.svg
+!docs/**/requirements.txt
 !src/scitex_clew/dag.png
 
 # Allow example output artifacts
