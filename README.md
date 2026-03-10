@@ -23,26 +23,42 @@
 
 ## Problem
 
-70% of researchers report failed replication attempts, and only 11-36% of high-profile findings are successfully reproduced. Existing tools — pre-registration, containerization, workflow managers — address whether research *could be* reproduced, but not whether it *has been*. Unrecorded manual steps, implementation gaps, and missing provenance mean that even well-intentioned pipelines silently diverge from their published claims.
+Scientific publications are growing exponentially — accelerated by LLM-assisted writing — yet peer review remains a manual bottleneck. 70% of researchers report failed replication attempts, and only 11-36% of high-profile findings are successfully reproduced. Existing tools (pre-registration, containerization, workflow managers) address whether research *could be* reproduced, but not whether it *has been*.
 
 ## Solution
 
-Clew — named after the thread Ariadne gave Theseus to trace his path through the labyrinth — records SHA-256 hashes at every step your pipeline reads and writes, stored in a local SQLite database. It lets you:
+Clew — named after the thread Ariadne gave Theseus to trace his path through the labyrinth — records SHA-256 hashes at every step your pipeline reads and writes, stored in a local SQLite database. The resulting **DAG (directed acyclic graph) is a structured, machine-readable logic representation of an entire research project** — from raw data through processing scripts to final figures and manuscript claims — enabling both human reviewers and AI agents to verify reproducibility programmatically. It lets you:
 
 - **Verify** that outputs haven't changed since recording
 - **Trace** provenance chains from any file back to its source
 - **Re-execute** scripts in a sandbox to confirm reproducibility
 - **Link** manuscript claims to the sessions that produced them
 
+### Five Node Classes
+
+Every node in the DAG is classified into one of five semantic roles:
+
+| Class | Role | Examples |
+|-------|------|----------|
+| **Source** | Data acquisition scripts | `01_download.py`, `collect.sh` |
+| **Input** | Raw data and configuration | `raw_data.csv`, `config.yaml` |
+| **Processing** | Transform and analysis scripts | `03_analyze.py`, `train.R` |
+| **Output** | Intermediate and final data products | `results.csv`, `figure1.png` |
+| **Claim** | Manuscript assertions tied to evidence | `"Fig 1 shows p<0.05"`, `"Table 2"` |
+
+<p align="center"><sub><b>Table 1.</b> Five node classes. Classification is inferred automatically from file extensions and session roles, or set explicitly via <code>set_node_class()</code>.</sub></p>
+
+This classification turns the DAG into a navigable map of the research project. The key operation is **backpropagation from claims to sources**: starting from a manuscript assertion (claim), Clew traces backward through outputs, processing scripts, and inputs to the original raw data — verifying every hash along the way.
+
 ### Three Verification Modes
 
 | Mode | Scope | API | Description |
 |------|-------|-----|-------------|
-| **Project** | Entire pipeline | `clew.dag(claims=True)` | Builds the full DAG from all registered claims and verifies every session in topological order. Answers: *"Is the whole project intact?"* |
+| **Project** | Entire pipeline | `clew.dag()` | Verifies every session recorded in the database in topological order. A navigation map for ongoing project monitoring. Answers: *"Is the whole project intact?"* |
 | **Files** | Specific outputs | `clew.dag(["output.csv"])` | Traces backward from target files through their dependency chain and verifies each session. Answers: *"Can I trust this specific file?"* |
 | **Claims** | Manuscript assertions | `clew.verify_claim("Fig 1")` | Verifies individual claims linked to source sessions. Answers: *"Is this figure/statistic still backed by the data?"* |
 
-<p align="center"><sub><b>Table 1.</b> Three verification modes. Each mode supports both <b>cache verification</b> (millisecond hash comparison) and <b>re-run verification</b> (sandbox re-execution with <code>rerun_dag</code> / <code>rerun_claims</code>).</sub></p>
+<p align="center"><sub><b>Table 2.</b> Three verification modes. Each mode supports both <b>cache verification</b> (millisecond hash comparison) and <b>re-run verification</b> (sandbox re-execution with <code>rerun_dag</code> / <code>rerun_claims</code>).</sub></p>
 
 ## Installation
 
@@ -142,7 +158,7 @@ AI agents can verify reproducibility and trace provenance autonomously.
 | `clew_rerun_dag` | Rerun full DAG in sandbox |
 | `clew_rerun_claims` | Rerun all claim-backing sessions |
 
-<sub><b>Table 2.</b> Nine MCP tools available for AI-assisted verification. All tools accept JSON parameters and return JSON results.</sub>
+<sub><b>Table 3.</b> Nine MCP tools available for AI-assisted verification. All tools accept JSON parameters and return JSON results.</sub>
 
 ```bash
 clew mcp start
