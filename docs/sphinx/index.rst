@@ -1,4 +1,4 @@
-SciTeX CLEW
+SciTeX Clew
 ===========
 
 .. image:: _static/scitex-logo.png
