@@ -42,7 +42,7 @@ Clew — named after the thread Ariadne gave Theseus to trace his path through t
 | **Files** | Specific outputs | `clew.dag(["output.csv"])` | Traces backward from target files through their dependency chain and verifies each session. Answers: *"Can I trust this specific file?"* |
 | **Claims** | Manuscript assertions | `clew.verify_claim("Fig 1")` | Verifies individual claims linked to source sessions. Answers: *"Is this figure/statistic still backed by the data?"* |
 
-Each mode supports both **cache verification** (millisecond hash comparison) and **re-run verification** (sandbox re-execution with `rerun_dag` / `rerun_claims`).
+<p align="center"><sub><b>Table 1.</b> Three verification modes. Each mode supports both <b>cache verification</b> (millisecond hash comparison) and <b>re-run verification</b> (sandbox re-execution with <code>rerun_dag</code> / <code>rerun_claims</code>).</sub></p>
 
 ## Installation
 
@@ -78,6 +78,7 @@ rerun_result = clew.rerun("session_20250301_143022")
 <p align="center">
   <img src="src/scitex_clew/dag.png" alt="DAG verification example" width="80%"/>
 </p>
+<p align="center"><sub><b>Figure 1.</b> Example DAG visualization. Green nodes indicate verified sessions; red nodes indicate hash mismatches. Clew traces the dependency graph backward from target files to raw data sources.</sub></p>
 
 ## Three Interfaces
 
@@ -140,6 +141,8 @@ AI agents can verify reproducibility and trace provenance autonomously.
 | `clew_mermaid` | Generate Mermaid DAG diagram |
 | `clew_rerun_dag` | Rerun full DAG in sandbox |
 | `clew_rerun_claims` | Rerun all claim-backing sessions |
+
+<sub><b>Table 2.</b> Nine MCP tools available for AI-assisted verification. All tools accept JSON parameters and return JSON results.</sub>
 
 ```bash
 clew mcp start
