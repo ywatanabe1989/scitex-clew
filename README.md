@@ -1,4 +1,4 @@
-# Clew (<code>scitex-clew</code>)
+# SciTeX Clew (<code>scitex-clew</code>)
 
 <p align="center">
   <a href="https://scitex.ai">
