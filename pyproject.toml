@@ -68,6 +68,9 @@ all = [
 [project.scripts]
 clew = "scitex_clew._cli:main"
 
+[project.entry-points."scitex_linter.plugins"]
+clew = "scitex_clew._linter_plugin:get_plugin"
+
 [project.urls]
 Homepage = "https://github.com/ywatanabe1989/scitex-clew"
 Repository = "https://github.com/ywatanabe1989/scitex-clew"

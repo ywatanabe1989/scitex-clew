@@ -1,3 +1,9 @@
+<!-- ---
+!-- Timestamp: 2026-03-11 12:29:46
+!-- Author: ywatanabe
+!-- File: /home/ywatanabe/proj/scitex-clew/README.md
+!-- --- -->
+
 # SciTeX Clew (<code>scitex-clew</code>)
 
 <p align="center">
