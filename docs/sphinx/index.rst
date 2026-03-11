@@ -8,12 +8,16 @@ SciTeX Clew
 
 .. raw:: html
 
-   <p align="center"><b>Hash-based reproducibility verification for scientific pipelines</b></p>
+   <p align="center"><b>Verifiable knowledge graph for scientific experiments</b></p>
    <br>
 
-**Clew** — named after the thread Ariadne gave Theseus to trace his path through
-the labyrinth — records SHA-256 hashes at every computational step, building a
-**DAG** (directed acyclic graph) that serves two purposes:
+SciTeX Clew records every artifact produced during research — code, data, figures,
+statistics — into a **hash-linked DAG** (directed acyclic graph). This creates a
+**verifiable knowledge graph** of scientific experiments, which can be explored by
+humans or AI agents.
+
+Named after the thread Ariadne gave Theseus to trace his path through the
+labyrinth, Clew serves two purposes:
 
 1. **Reproducibility verification** — confirm that outputs have not changed and
    that every step in the pipeline remains intact.
