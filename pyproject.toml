@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scitex-clew"
-version = "0.1.4"
-description = "Hash-based reproducibility verification for scientific pipelines"
+version = "0.1.6"
+description = "Verifiable knowledge graph for scientific experiments"
 readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.10"
@@ -67,6 +67,9 @@ all = [
 
 [project.scripts]
 clew = "scitex_clew._cli:main"
+
+[project.entry-points."scitex_linter.plugins"]
+clew = "scitex_clew._linter_plugin:get_plugin"
 
 [project.urls]
 Homepage = "https://github.com/ywatanabe1989/scitex-clew"
