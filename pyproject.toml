@@ -68,6 +68,9 @@ all = [
 [project.scripts]
 clew = "scitex_clew._cli:main"
 
+[project.entry-points."scitex_dev.docs"]
+scitex-clew = "scitex_clew"
+
 [project.entry-points."scitex_linter.plugins"]
 clew = "scitex_clew._linter_plugin:get_plugin"
 
