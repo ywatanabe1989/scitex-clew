@@ -44,6 +44,17 @@ Public API (19 functions)::
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
+# Optional decorator from scitex-dev (graceful fallback)
+# ---------------------------------------------------------------------------
+try:
+    from scitex_dev.decorators import supports_return_as as _supports_return_as
+except ImportError:
+
+    def _supports_return_as(fn):
+        return fn
+
+
+# ---------------------------------------------------------------------------
 # Internal imports (hidden from public API, still importable via full path)
 # ---------------------------------------------------------------------------
 from ._chain import (
@@ -107,17 +118,20 @@ from ._visualize import (
 # ---------------------------------------------------------------------------
 # Public convenience API
 # ---------------------------------------------------------------------------
+@_supports_return_as
 def list_runs(limit: int = 100, status: str = None):
     """List tracked runs."""
     db = _get_db()
     return db.list_runs(status=status, limit=limit)
 
 
+@_supports_return_as
 def status():
     """Get verification status summary (like git status)."""
     return _get_status()
 
 
+@_supports_return_as
 def run(session_id: str, from_scratch: bool = False):
     """Verify a specific run.
 
@@ -134,17 +148,20 @@ def run(session_id: str, from_scratch: bool = False):
     return _verify_run(session_id)
 
 
+@_supports_return_as
 def chain(target: str):
     """Verify the dependency chain for a target file."""
     return _verify_chain(target)
 
 
+@_supports_return_as
 def stats():
     """Get database statistics."""
     db = _get_db()
     return db.stats()
 
 
+@_supports_return_as
 def dag(targets=None, claims=False):
     """Verify the DAG for multiple targets or all claims."""
     if claims:
@@ -152,6 +169,7 @@ def dag(targets=None, claims=False):
     return _verify_dag(targets or [])
 
 
+@_supports_return_as
 def rerun(target, timeout: int = 300, cleanup: bool = True):
     """Re-execute a session in a sandbox and compare outputs.
 
@@ -167,6 +185,7 @@ def rerun(target, timeout: int = 300, cleanup: bool = True):
     return _verify_by_rerun(target, timeout=timeout, cleanup=cleanup)
 
 
+@_supports_return_as
 def mermaid(
     session_id=None,
     target_file=None,
