@@ -567,7 +567,14 @@ class TestMcpDoctor:
 
     def test_shows_checking_message(self, runner):
         """Regardless of fastmcp availability the initial message is shown."""
-        with patch("asyncio.run", return_value=[1, 2, 3]):
+        with patch(
+            "scitex_clew._mcp.get_tools_sync",
+            return_value=[
+                MagicMock(name="t1"),
+                MagicMock(name="t2"),
+                MagicMock(name="t3"),
+            ],
+        ):
             result = runner.invoke(main, ["mcp", "doctor"])
         assert "Checking" in result.output or "mcp" in result.output.lower()
 
@@ -578,7 +585,14 @@ class TestMcpDoctor:
         except ImportError:
             pytest.skip("fastmcp not installed in this environment")
 
-        with patch("asyncio.run", return_value=[1, 2, 3]):
+        with patch(
+            "scitex_clew._mcp.get_tools_sync",
+            return_value=[
+                MagicMock(name="t1"),
+                MagicMock(name="t2"),
+                MagicMock(name="t3"),
+            ],
+        ):
             result = runner.invoke(main, ["mcp", "doctor"])
         assert result.exit_code == 0
         assert "OK" in result.output or "fastmcp" in result.output
@@ -611,7 +625,7 @@ class TestMcpDoctor:
 class TestMcpListTools:
     """clew mcp list-tools lists MCP tools.
 
-    Strategy: patch asyncio.run to return fake tool lists synchronously,
+    Strategy: patch get_tools_sync to return fake tool lists,
     avoiding event-loop hangs inside Click's CliRunner.
     """
 
@@ -624,9 +638,9 @@ class TestMcpListTools:
         tool.fn = None
         return tool
 
-    def _patch_asyncio_run(self, tools):
-        """Return a context manager that patches asyncio.run to return tools."""
-        return patch("asyncio.run", return_value=tools)
+    def _patch_get_tools(self, tools):
+        """Return a context manager that patches get_tools_sync to return tools."""
+        return patch("scitex_clew._mcp.get_tools_sync", return_value=tools)
 
     def test_list_tools_import_error_exits_nonzero(self, runner):
         """If mcp server import fails, exit code is non-zero."""
@@ -644,23 +658,23 @@ class TestMcpListTools:
         assert result.exit_code != 0 or "error" in result.output.lower()
 
     def test_list_tools_exits_zero(self, runner):
-        """list-tools exits 0 when asyncio.run returns tools."""
+        """list-tools exits 0 when get_tools_sync returns tools."""
         fake_tool = self._make_fake_tool("clew_status", "Get status.")
-        with self._patch_asyncio_run([fake_tool]):
+        with self._patch_get_tools([fake_tool]):
             result = runner.invoke(main, ["mcp", "list-tools"])
         assert result.exit_code == 0
 
     def test_list_tools_shows_tool_count(self, runner):
         """list-tools output includes tool count."""
         tools = [self._make_fake_tool(f"t{i}") for i in range(3)]
-        with self._patch_asyncio_run(tools):
+        with self._patch_get_tools(tools):
             result = runner.invoke(main, ["mcp", "list-tools"])
         assert "3" in result.output
 
     def test_list_tools_json_outputs_valid_json(self, runner):
         """list-tools --json outputs valid JSON."""
         fake_tool = self._make_fake_tool("clew_status", "Get status.")
-        with self._patch_asyncio_run([fake_tool]):
+        with self._patch_get_tools([fake_tool]):
             result = runner.invoke(main, ["mcp", "list-tools", "--json"])
         assert result.exit_code == 0
         parsed = json.loads(result.output)
@@ -674,7 +688,7 @@ class TestMcpListTools:
             self._make_fake_tool("clew_list", "List runs."),
             self._make_fake_tool("clew_stats", "Stats."),
         ]
-        with self._patch_asyncio_run(tools):
+        with self._patch_get_tools(tools):
             result = runner.invoke(main, ["mcp", "list-tools", "--json"])
         parsed = json.loads(result.output)
         assert parsed["total"] == 3
@@ -683,7 +697,7 @@ class TestMcpListTools:
     def test_list_tools_json_tool_has_name_key(self, runner):
         """Each entry in JSON 'tools' array has a 'name' field."""
         fake_tool = self._make_fake_tool("clew_mermaid", "Mermaid.")
-        with self._patch_asyncio_run([fake_tool]):
+        with self._patch_get_tools([fake_tool]):
             result = runner.invoke(main, ["mcp", "list-tools", "--json"])
         parsed = json.loads(result.output)
         assert "name" in parsed["tools"][0]
@@ -692,7 +706,7 @@ class TestMcpListTools:
     def test_list_tools_json_tool_has_description_key(self, runner):
         """Each entry in JSON 'tools' array has a 'description' field."""
         fake_tool = self._make_fake_tool("clew_list", "List runs.")
-        with self._patch_asyncio_run([fake_tool]):
+        with self._patch_get_tools([fake_tool]):
             result = runner.invoke(main, ["mcp", "list-tools", "--json"])
         parsed = json.loads(result.output)
         assert "description" in parsed["tools"][0]
@@ -709,14 +723,14 @@ class TestMcpListTools:
             "properties": {"session_id": {"type": "string"}},
             "required": ["session_id"],
         }
-        with self._patch_asyncio_run([fake_tool]):
+        with self._patch_get_tools([fake_tool]):
             result = runner.invoke(main, ["mcp", "list-tools", "-v"])
         assert result.exit_code == 0
 
     def test_list_tools_compact_flag_accepted(self, runner):
         """list-tools --compact is accepted and exits 0."""
         fake_tool = self._make_fake_tool("clew_stats")
-        with self._patch_asyncio_run([fake_tool]):
+        with self._patch_get_tools([fake_tool]):
             result = runner.invoke(main, ["mcp", "list-tools", "--compact"])
         assert result.exit_code == 0
 
@@ -727,7 +741,7 @@ class TestMcpListTools:
         except ImportError:
             pytest.skip("fastmcp / MCP server not available in this environment")
 
-        with patch("asyncio.run", return_value=[]):
+        with patch("scitex_clew._mcp.get_tools_sync", return_value=[]):
             result = runner.invoke(main, ["mcp", "list-tools"])
         assert result.exit_code == 0
 

@@ -109,9 +109,9 @@ def list_tools(verbose: int, compact: bool, as_json: bool) -> None:
             f"fastmcp not installed. Install with: pip install scitex-clew[mcp]\n{e}"
         ) from e
 
-    import asyncio
+    from .._mcp import get_tools_sync
 
-    tools = asyncio.run(mcp_server.get_tools())
+    tools = get_tools_sync(mcp_server)
     total = len(tools)
 
     if as_json:
@@ -209,10 +209,9 @@ def doctor() -> None:
 
     try:
         from .._mcp.server import mcp as mcp_server
+        from .._mcp import get_tools_sync
 
-        import asyncio
-
-        tool_count = len(asyncio.run(mcp_server.get_tools()))
+        tool_count = len(get_tools_sync(mcp_server))
         click.echo(f"  [OK] MCP server loaded ({tool_count} tools)")
     except Exception as e:
         click.echo(f"  [!!] MCP server error: {e}")
