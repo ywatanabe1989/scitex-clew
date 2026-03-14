@@ -14,14 +14,20 @@ def get_tools_sync(mcp_server):
         return list(mcp_server._tool_manager._tools.values())
     except AttributeError:
         pass
-    # FastMCP 2.x/3.x: async get_tools()
-    if hasattr(mcp_server, "get_tools"):
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(mcp_server.get_tools())
-        finally:
-            loop.close()
-    # FastMCP 3.x: only get_tool(name) exists — no list method
+
+    # Try async methods: get_tools (2.x) then list_tools (3.x)
+    for method_name in ("get_tools", "list_tools"):
+        method = getattr(mcp_server, method_name, None)
+        if method is not None and callable(method):
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(method())
+                if isinstance(result, dict):
+                    return list(result.values())
+                return list(result)
+            finally:
+                loop.close()
+
     raise AttributeError(
         "Cannot enumerate tools from this FastMCP version. "
         "Consider upgrading or pinning fastmcp."
