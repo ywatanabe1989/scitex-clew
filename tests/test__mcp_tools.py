@@ -93,18 +93,25 @@ def populated_db(isolated_db, tmp_path):
 
 def _get_tools_dict(mcp):
     """Get the {name: tool} dict from a FastMCP instance (version-agnostic)."""
-    # Try internal _tool_manager._tools dict first (FastMCP 2.x)
+    # Try internal _tool_manager._tools dict (FastMCP 2.x)
     try:
         return mcp._tool_manager._tools
     except AttributeError:
         pass
-    # Fallback: public async API via new event loop
-    loop = asyncio.new_event_loop()
-    try:
-        tools_list = loop.run_until_complete(mcp.get_tools())
-        return {t.name: t for t in tools_list}
-    finally:
-        loop.close()
+    # Fallback: public async get_tools() API
+    if hasattr(mcp, "get_tools"):
+        loop = asyncio.new_event_loop()
+        try:
+            tools_list = loop.run_until_complete(mcp.get_tools())
+            return {t.name: t for t in tools_list}
+        except Exception:
+            pass
+        finally:
+            loop.close()
+    raise AttributeError(
+        f"Cannot extract tools from FastMCP instance. "
+        f"Available attrs: {[a for a in dir(mcp) if 'tool' in a.lower()]}"
+    )
 
 
 def _get_tool_fn(mcp, tool_name: str):
