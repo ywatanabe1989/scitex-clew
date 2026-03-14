@@ -45,7 +45,7 @@ dev = [
     "scitex-dev",
 ]
 mcp = [
-    "fastmcp>=2.0.0",
+    "fastmcp>=2.0.0,<3.0.0",
 ]
 docs = [
     "sphinx>=7.0",
@@ -56,7 +56,7 @@ docs = [
 ]
 all = [
     "click>=8.0.0",
-    "fastmcp>=2.0.0",
+    "fastmcp>=2.0.0,<3.0.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "scitex-dev",

@@ -91,15 +91,36 @@ def populated_db(isolated_db, tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def _get_tools_dict(mcp):
+    """Get the {name: tool} dict from a FastMCP instance (version-agnostic)."""
+    # Try internal _tool_manager._tools dict (FastMCP 2.x)
+    try:
+        return mcp._tool_manager._tools
+    except AttributeError:
+        pass
+    # Fallback: public async get_tools() API
+    if hasattr(mcp, "get_tools"):
+        loop = asyncio.new_event_loop()
+        try:
+            tools_list = loop.run_until_complete(mcp.get_tools())
+            return {t.name: t for t in tools_list}
+        except Exception:
+            pass
+        finally:
+            loop.close()
+    raise AttributeError(
+        f"Cannot extract tools from FastMCP instance. "
+        f"Available attrs: {[a for a in dir(mcp) if 'tool' in a.lower()]}"
+    )
+
+
 def _get_tool_fn(mcp, tool_name: str):
     """Extract the raw async function registered under tool_name."""
-    # FastMCP stores tools in _tool_manager._tools (dict keyed by name)
-    tools = mcp._tool_manager._tools
+    tools = _get_tools_dict(mcp)
     tool = tools.get(tool_name)
     if tool is None:
         available = list(tools.keys())
         raise KeyError(f"Tool '{tool_name}' not found. Available: {available}")
-    # The underlying function is stored in tool.fn
     return tool.fn
 
 
@@ -121,44 +142,44 @@ class TestRegisterTools:
         return m
 
     def test_clew_list_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_list" in tools
 
     def test_clew_run_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_run" in tools
 
     def test_clew_chain_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_chain" in tools
 
     def test_clew_status_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_status" in tools
 
     def test_clew_stats_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_stats" in tools
 
     def test_clew_mermaid_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_mermaid" in tools
 
     def test_clew_dag_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_dag" in tools
 
     def test_clew_rerun_dag_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_rerun_dag" in tools
 
     def test_clew_rerun_claims_registered(self, mcp):
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_rerun_claims" in tools
 
     def test_nine_tools_total(self, mcp):
         """Exactly 9 tools should be registered."""
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert len(tools) == 9
 
 
@@ -171,7 +192,7 @@ class TestRegisterAllTools:
 
         m = FastMCP(name="test-all-tools")
         register_all_tools(m)
-        tools = m._tool_manager._tools
+        tools = _get_tools_dict(m)
         expected = {
             "clew_list",
             "clew_run",
@@ -213,13 +234,13 @@ class TestMCPServer:
     def test_mcp_has_tools(self):
         from scitex_clew._mcp.server import mcp
 
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert len(tools) > 0
 
     def test_mcp_has_clew_status(self):
         from scitex_clew._mcp.server import mcp
 
-        tools = mcp._tool_manager._tools
+        tools = _get_tools_dict(mcp)
         assert "clew_status" in tools
 
     def test_mcp_instructions_not_empty(self):
