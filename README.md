@@ -1,4 +1,10 @@
-# Clew (<code>scitex-clew</code>)
+<!-- ---
+!-- Timestamp: 2026-03-11 12:29:46
+!-- Author: ywatanabe
+!-- File: /home/ywatanabe/proj/scitex-clew/README.md
+!-- --- -->
+
+# SciTeX Clew (<code>scitex-clew</code>)
 
 <p align="center">
   <a href="https://scitex.ai">
@@ -6,7 +12,7 @@
   </a>
 </p>
 
-<p align="center"><b>Hash-based reproducibility verification for scientific pipelines</b></p>
+<p align="center"><b>Verifiable knowledge graph for scientific experiments</b></p>
 
 <p align="center">
   <a href="https://badge.fury.io/py/scitex-clew"><img src="https://badge.fury.io/py/scitex-clew.svg" alt="PyPI version"></a>
@@ -27,12 +33,20 @@ Scientific publications are growing exponentially — accelerated by LLM-assiste
 
 ## Solution
 
-Clew — named after the thread Ariadne gave Theseus to trace his path through the labyrinth — records SHA-256 hashes at every step your pipeline reads and writes, stored in a local SQLite database. The resulting **DAG (directed acyclic graph) is a structured, machine-readable logic representation of an entire research project** — from raw data through processing scripts to final figures and manuscript claims — enabling both human reviewers and AI agents to verify reproducibility programmatically. It lets you:
+SciTeX Clew records every artifact produced during research — code, data, figures, statistics — into a **hash-linked DAG (directed acyclic graph)**. This creates a **verifiable knowledge graph** of scientific experiments, which can be explored by humans or AI agents.
 
-- **Verify** that outputs haven't changed since recording
+Named after the thread Ariadne gave Theseus to trace his path through the labyrinth, Clew serves two purposes:
+
+1. **Reproducibility verification** — confirm that outputs remain unchanged and that every step in the pipeline is intact.
+2. **Research logic comprehension** — visualize and navigate the structural skeleton of a research project, from raw data through analysis to manuscript claims.
+
+The DAG is a structured, machine-readable representation of an entire research project — enabling both human reviewers and AI agents to inspect, verify, and understand the logic programmatically. It lets you:
+
+- **Verify** that outputs remain consistent with recorded hashes
 - **Trace** provenance chains from any file back to its source
+- **Visualize** the structural logic of a research project as a navigable graph
 - **Re-execute** scripts in a sandbox to confirm reproducibility
-- **Link** manuscript claims to the sessions that produced them
+- **Link** manuscript claims to the computational sessions that produced them
 
 ### Five Node Classes
 
@@ -191,7 +205,7 @@ scitex.clew.run("session_id")     # verify
 scitex.clew.mermaid(claims=True)  # DAG diagram
 ```
 
-The SciTeX ecosystem follows the Four Freedoms for researchers:
+The SciTeX system follows the Four Freedoms for Research below, inspired by [the Free Software Definition](https://www.gnu.org/philosophy/free-sw.en.html):
 
 >Four Freedoms for Research
 >
@@ -200,7 +214,7 @@ The SciTeX ecosystem follows the Four Freedoms for researchers:
 >2. The freedom to **redistribute** your workflows, not just your papers.
 >3. The freedom to **modify** any module and share improvements with the community.
 >
->AGPL-3.0 — because research infrastructure deserves the same freedoms as the software it runs on.
+>AGPL-3.0 — because we believe research infrastructure deserves the same freedoms as the software it runs on.
 
 ---
 

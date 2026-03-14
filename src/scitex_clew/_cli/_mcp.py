@@ -109,9 +109,9 @@ def list_tools(verbose: int, compact: bool, as_json: bool) -> None:
             f"fastmcp not installed. Install with: pip install scitex-clew[mcp]\n{e}"
         ) from e
 
-    import asyncio
+    from .._mcp import get_tools_sync
 
-    tools = asyncio.run(mcp_server.list_tools())
+    tools = get_tools_sync(mcp_server)
     total = len(tools)
 
     if as_json:
@@ -170,6 +170,29 @@ def start_server() -> None:
     mcp_server.run()
 
 
+@mcp.command("installation")
+def installation() -> None:
+    """Show installation instructions for MCP server integration."""
+    click.echo("Install scitex-clew with MCP support:")
+    click.echo()
+    click.echo("  pip install scitex-clew[mcp]")
+    click.echo()
+    click.echo("Add to your MCP client configuration:")
+    click.echo()
+    click.echo("  {")
+    click.echo('    "mcpServers": {')
+    click.echo('      "scitex-clew": {')
+    click.echo('        "command": "clew",')
+    click.echo('        "args": ["mcp", "start"]')
+    click.echo("      }")
+    click.echo("    }")
+    click.echo("  }")
+    click.echo()
+    click.echo("Verify with:")
+    click.echo("  clew mcp doctor")
+    click.echo("  clew mcp list-tools")
+
+
 @mcp.command("doctor")
 def doctor() -> None:
     """Check MCP server dependencies and configuration."""
@@ -186,10 +209,9 @@ def doctor() -> None:
 
     try:
         from .._mcp.server import mcp as mcp_server
+        from .._mcp import get_tools_sync
 
-        import asyncio
-
-        tool_count = len(asyncio.run(mcp_server.list_tools()))
+        tool_count = len(get_tools_sync(mcp_server))
         click.echo(f"  [OK] MCP server loaded ({tool_count} tools)")
     except Exception as e:
         click.echo(f"  [!!] MCP server error: {e}")

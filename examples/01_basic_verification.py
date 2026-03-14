@@ -12,14 +12,17 @@ Run this script to see:
 - Status of each run (success/failed/unknown)
 """
 
+from pathlib import Path
+
 import scitex_clew as clew
+
+OUT_DIR = Path(__file__).parent / "01_basic_verification_out"
 
 
 def main():
     """Run basic verification example."""
-    # Initialize example pipeline
-    # This copies bundled example scripts to /tmp/clew_example
-    # You would run "python 00_run_all.sh" to generate the pipeline outputs
+    OUT_DIR.mkdir(exist_ok=True)
+
     print("Initializing example pipeline...")
     examples = clew.init_examples("/tmp/clew_example")
     print(f"  Copied to: {examples['path']}")
@@ -56,6 +59,15 @@ def main():
     print(f"Total sessions: {stats.get('total_runs', 0)}")
     print(f"Total files: {stats.get('total_files', 0)}")
     print(f"Database location: {stats.get('db_path', 'unknown')}")
+
+    # Save report
+    report_path = OUT_DIR / "status_report.txt"
+    with open(report_path, "w") as f:
+        f.write("=== Verification Status ===\n")
+        f.write(f"Total runs: {status.get('total_runs', 0)}\n")
+        f.write(f"Verified runs: {status.get('verified_runs', 0)}\n")
+        f.write(f"Failed runs: {status.get('failed_runs', 0)}\n")
+    print(f"\nReport saved to: {report_path}")
 
     return 0
 
