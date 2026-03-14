@@ -111,7 +111,7 @@ def list_tools(verbose: int, compact: bool, as_json: bool) -> None:
 
     import asyncio
 
-    tools = asyncio.run(mcp_server.list_tools())
+    tools = asyncio.run(mcp_server.get_tools())
     total = len(tools)
 
     if as_json:
@@ -212,7 +212,7 @@ def doctor() -> None:
 
         import asyncio
 
-        tool_count = len(asyncio.run(mcp_server.list_tools()))
+        tool_count = len(asyncio.run(mcp_server.get_tools()))
         click.echo(f"  [OK] MCP server loaded ({tool_count} tools)")
     except Exception as e:
         click.echo(f"  [!!] MCP server error: {e}")

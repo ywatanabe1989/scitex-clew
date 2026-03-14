@@ -42,6 +42,7 @@ cli = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "scitex-dev",
 ]
 mcp = [
     "fastmcp>=2.0.0",
@@ -58,6 +59,7 @@ all = [
     "fastmcp>=2.0.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "scitex-dev",
     "sphinx>=7.0",
     "sphinx-rtd-theme>=2.0",
     "myst-parser>=2.0",
@@ -67,6 +69,9 @@ all = [
 
 [project.scripts]
 clew = "scitex_clew._cli:main"
+
+[project.entry-points."scitex_dev.docs"]
+scitex-clew = "scitex_clew"
 
 [project.entry-points."scitex_linter.plugins"]
 clew = "scitex_clew._linter_plugin:get_plugin"

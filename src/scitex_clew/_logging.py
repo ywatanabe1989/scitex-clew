@@ -3,7 +3,11 @@
 
 When scitex is installed, uses scitex.logging (richer formatting).
 Otherwise, falls back to stdlib logging.
+
+Set SCITEX_CLEW_DEBUG_MODE=1 to enable DEBUG-level logging.
 """
+
+import os
 
 try:
     import scitex.logging as _logging
@@ -13,6 +17,12 @@ except ImportError:
     import logging
 
     getLogger = logging.getLogger
+
+if os.environ.get("SCITEX_CLEW_DEBUG_MODE", "").strip() in ("1", "true", "yes"):
+    import logging
+
+    logging.basicConfig(level=logging.DEBUG)
+    getLogger("scitex_clew").setLevel(logging.DEBUG)
 
 
 # EOF

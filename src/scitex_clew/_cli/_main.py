@@ -26,7 +26,7 @@ else:
     COMMAND_CATEGORIES = [
         ("Verification", ["status", "list", "verify", "stats"]),
         ("Visualization", ["mermaid"]),
-        ("Integration", ["mcp", "list-python-apis"]),
+        ("Integration", ["mcp", "list-python-apis", "completion"]),
     ]
 
     class CategorizedGroup(click.Group):
@@ -177,6 +177,30 @@ else:
 
         code = clew.mermaid(claims=claims)
         click.echo(code)
+
+    @main.command("completion")
+    @click.argument("shell", type=click.Choice(["bash", "zsh", "fish"]))
+    def completion(shell: str):
+        """Generate shell completion script.
+
+        \b
+        Usage:
+          eval "$(clew completion bash)"
+          eval "$(clew completion zsh)"
+          clew completion fish | source
+        """
+        import os
+        import subprocess
+
+        env = os.environ.copy()
+        env["_CLEW_COMPLETE"] = f"{shell}_source"
+        result = subprocess.run(
+            ["clew"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        click.echo(result.stdout)
 
     # -----------------------------------------------------------------------
     # Register integration commands
