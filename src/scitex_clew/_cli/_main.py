@@ -208,3 +208,10 @@ else:
 
     main.add_command(list_python_apis)
     main.add_command(mcp)
+
+    try:
+        from scitex_dev.cli import docs_click_group
+
+        main.add_command(docs_click_group(package="scitex-clew"))
+    except ImportError:
+        pass
