@@ -1,5 +1,4 @@
 ---
-name: scitex-clew
 description: Hash-based reproducibility verification for scientific pipelines. Use when verifying session runs, tracing provenance chains, auditing full DAGs, registering manuscript claims, or creating temporal stamps.
 allowed-tools: mcp__scitex__clew_*
 ---
