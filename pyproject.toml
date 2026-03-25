@@ -20,7 +20,6 @@ keywords = [
     "provenance",
     "scitex",
     "science",
-]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -32,67 +31,39 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
-]
 dependencies = []
-
 [project.optional-dependencies]
 cli = [
     "click>=8.0.0",
-]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "scitex-dev",
-]
 mcp = [
     "fastmcp>=2.0.0",
-]
 docs = [
     "sphinx>=7.0",
     "sphinx-rtd-theme>=2.0",
     "myst-parser>=2.0",
     "sphinx-copybutton>=0.5",
     "sphinx-autodoc-typehints>=1.25",
-]
 all = [
-    "click>=8.0.0",
-    "fastmcp>=2.0.0",
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "scitex-dev",
-    "sphinx>=7.0",
-    "sphinx-rtd-theme>=2.0",
-    "myst-parser>=2.0",
-    "sphinx-copybutton>=0.5",
-    "sphinx-autodoc-typehints>=1.25",
-]
-
 [project.scripts]
 clew = "scitex_clew._cli:main"
-
 [project.entry-points."scitex_dev.docs"]
 scitex-clew = "scitex_clew"
-
 [project.entry-points."scitex_dev.skills"]
-scitex-clew = "scitex_clew"
-
 [project.entry-points."scitex_linter.plugins"]
 clew = "scitex_clew._linter_plugin:get_plugin"
-
 [project.urls]
 Homepage = "https://github.com/ywatanabe1989/scitex-clew"
 Repository = "https://github.com/ywatanabe1989/scitex-clew"
 Documentation = "https://scitex-clew.readthedocs.io"
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/scitex_clew"]
-
 [tool.hatch.build.targets.wheel.force-include]
-"src/scitex_clew/skills" = "scitex_clew/skills"
 "src/scitex_clew/_skills" = "scitex_clew/_skills"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
 [tool.scitex-linter]
 library_dirs = ["src", "tests", "examples"]
