@@ -1,5 +1,4 @@
 ---
-name: common-workflows
 description: Common scitex-clew workflows — claims, DAG patterns, stamps, and reproducibility auditing.
 ---
 
