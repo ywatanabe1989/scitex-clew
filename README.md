@@ -110,7 +110,7 @@ rerun_result = clew.rerun("session_20250301_143022")
 </p>
 <p align="center"><sub><b>Figure 1.</b> Example DAG visualization. Green nodes indicate verified sessions; red nodes indicate hash mismatches. Clew traces the dependency graph backward from target files to raw data sources.</sub></p>
 
-## Three Interfaces
+## Four Interfaces
 
 <details>
 <summary><strong>Python API</strong></summary>
@@ -179,6 +179,28 @@ clew mcp start
 ```
 
 > **[Full MCP specification](https://scitex-clew.readthedocs.io/)**
+
+</details>
+
+<details>
+<summary><strong>Skills — for AI Agent Discovery</strong></summary>
+
+<br>
+
+Skills provide workflow-oriented guides that AI agents query to discover capabilities and usage patterns.
+
+```bash
+clew skills list              # List available skill pages
+clew skills get SKILL         # Show main skill page
+scitex-dev skills export --package scitex-clew  # Export to Claude Code
+```
+
+| Skill | Content |
+|-------|---------|
+| `quick-start` | Basic API, session tracking, first verification |
+| `cli-commands` | CLI reference (`clew status`, `clew verify`, etc.) |
+| `mcp-tools-for-ai-agents` | MCP tool reference for AI agents |
+| `common-workflows` | Claims, DAG patterns, stamps, reproducibility |
 
 </details>
 
