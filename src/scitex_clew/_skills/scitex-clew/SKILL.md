@@ -13,6 +13,7 @@ Hash-based verification tracking for reproducible science. Zero dependencies (pu
 * [cli-commands.md](cli-commands.md) — CLI reference (`clew status`, `clew verify`, etc.)
 * [mcp-tools-for-ai-agents.md](mcp-tools-for-ai-agents.md) — MCP tool reference for AI agents
 * [common-workflows.md](common-workflows.md) — Claims, DAG patterns, stamps, reproducibility
+* [grouping.md](grouping.md) — Collapse related files into DAG nodes with Merkle roots
 
 ## MCP Tools
 

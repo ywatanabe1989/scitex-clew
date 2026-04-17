@@ -74,6 +74,33 @@ This classification turns the DAG into a navigable map of the research project. 
 
 <p align="center"><sub><b>Table 2.</b> Three verification modes. Each mode supports both <b>cache verification</b> (millisecond hash comparison) and <b>re-run verification</b> (sandbox re-execution with <code>rerun_dag</code> / <code>rerun_claims</code>).</sub></p>
 
+### Grouping for Readable DAGs
+
+Large pipelines emit many per-patient / per-fold files. The grouping API collapses related files into a single DAG node while preserving every underlying hash via a **Merkle root** — aggregate verification remains cryptographically meaningful.
+
+```python
+from scitex_clew.groupers import pattern_grouper, auto, compose
+import scitex_clew as clew
+
+clew.mermaid(claims=True, grouper=compose(
+    pattern_grouper(r"P\d{2}"),   # collapse P01, P02, ..., P15
+    auto(),                        # sensible directory + bundle fallbacks
+))
+```
+
+Project default via `<project_root>/.scitex/clew/config.yaml` (auto-loaded):
+
+```yaml
+grouper:
+  type: compose
+  steps:
+    - {type: pattern, regex: 'P\d{2}'}
+    - {type: directory, min_size: 10}
+    - {type: auto}
+```
+
+The same JSON/dict schema works across Python, CLI (`--grouper`), MCP (`{"grouper": {...}}`), and the YAML config file. See the [grouping skill](src/scitex_clew/_skills/scitex-clew/grouping.md).
+
 ## Installation
 
 Requires Python >= 3.10. **Zero dependencies** — pure stdlib + sqlite3.
