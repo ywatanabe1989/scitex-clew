@@ -76,3 +76,8 @@ clew mcp start           # Start MCP server
 clew skills list         # List skill pages
 clew skills get SKILL    # Get a specific skill page
 ```
+
+
+## Environment
+
+- [13_env-vars.md](13_env-vars.md) — SCITEX_* env vars read by scitex-clew at runtime
