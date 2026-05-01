@@ -155,7 +155,7 @@ clew.mermaid(claims=True)                  # Mermaid DAG diagram
 clew.add_claim("Fig 1 shows p<0.05", source_files=["fig1.png"])
 ```
 
-> **[Full API reference](https://scitex-clew.readthedocs.io/)**
+> **[Full API reference](https://scitex-clew.readthedocs.io/en/latest/api/scitex_clew.html)**
 
 </details>
 
@@ -175,7 +175,7 @@ clew list-python-apis                      # List Python API tree
 clew mcp list-tools                        # List MCP tools
 ```
 
-> **[Full CLI reference](https://scitex-clew.readthedocs.io/)**
+> **[Full CLI reference](https://scitex-clew.readthedocs.io/en/latest/quickstart.html)**
 
 </details>
 
@@ -204,7 +204,7 @@ AI agents can verify reproducibility and trace provenance autonomously.
 clew mcp start
 ```
 
-> **[Full MCP specification](https://scitex-clew.readthedocs.io/)**
+> **[Full MCP specification](https://scitex-clew.readthedocs.io/en/latest/api/scitex_clew._mcp.html)**
 
 </details>
 

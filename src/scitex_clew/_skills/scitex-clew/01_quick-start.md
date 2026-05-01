@@ -111,14 +111,14 @@ hashes = clew.hash_directory("/path/to/dir")
 When scitex is installed, clew integrates automatically:
 
 ```python
-import scitex as stx
+import scitex
 
-@stx.session
-def main(logger=stx.INJECTED):
-    # stx.io.load/save automatically records hashes via SessionTracker
-    data = stx.io.load("raw_data.csv")
+@scitex.session
+def main(logger=scitex.INJECTED):
+    # scitex.io.load/save automatically records hashes via SessionTracker
+    data = scitex.io.load("raw_data.csv")
     result = process(data)
-    stx.io.save(result, "processed.csv")
+    scitex.io.save(result, "processed.csv")
     return 0
 ```
 
