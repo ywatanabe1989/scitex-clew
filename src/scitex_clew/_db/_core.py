@@ -13,8 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ._db_chain import ChainMixin
-from ._db_queries import VerificationQueryMixin
+from ._chain import ChainMixin
+from ._queries import VerificationQueryMixin
 
 
 def _find_project_root() -> Path:

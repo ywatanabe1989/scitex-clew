@@ -130,7 +130,7 @@ class TestRegisterTools:
 
     def test_clew_list_registered(self, mcp):
         tools = _get_tools_dict(mcp)
-        assert "clew_list" in tools
+        assert "clew_list_runs" in tools
 
     def test_clew_run_registered(self, mcp):
         tools = _get_tools_dict(mcp)
@@ -181,7 +181,7 @@ class TestRegisterAllTools:
         register_all_tools(m)
         tools = _get_tools_dict(m)
         expected = {
-            "clew_list",
+            "clew_list_runs",
             "clew_run",
             "clew_chain",
             "clew_status",
@@ -394,7 +394,7 @@ class TestClewListTool:
 
         mcp = FastMCP(name="t")
         register_tools(mcp)
-        return _get_tool_fn(mcp, "clew_list")
+        return _get_tool_fn(mcp, "clew_list_runs")
 
     def test_returns_string(self, tool_fn):
         result = _run(tool_fn())
@@ -458,7 +458,7 @@ class TestClewListTool:
 
         mcp = FastMCP(name="t")
         register_tools(mcp)
-        fn = _get_tool_fn(mcp, "clew_list")
+        fn = _get_tool_fn(mcp, "clew_list_runs")
         result = _parse(_run(fn(limit=2)))
         assert result["count"] == 2
 
@@ -475,7 +475,7 @@ class TestClewListTool:
 
         mcp = FastMCP(name="t")
         register_tools(mcp)
-        fn = _get_tool_fn(mcp, "clew_list")
+        fn = _get_tool_fn(mcp, "clew_list_runs")
         result = _parse(_run(fn(status_filter="success")))
         assert result["count"] == 1
         assert result["runs"][0]["db_status"] == "success"
@@ -486,7 +486,7 @@ class TestClewListTool:
 
         mcp = FastMCP(name="t")
         register_tools(mcp)
-        fn = _get_tool_fn(mcp, "clew_list")
+        fn = _get_tool_fn(mcp, "clew_list_runs")
         result = _parse(_run(fn()))
         assert result["count"] == 0
         assert result["runs"] == []

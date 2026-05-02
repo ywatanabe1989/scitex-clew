@@ -685,7 +685,7 @@ class TestMcpListTools:
         """JSON output's 'total' matches the length of 'tools'."""
         tools = [
             self._make_fake_tool("clew_status", "Status."),
-            self._make_fake_tool("clew_list", "List runs."),
+            self._make_fake_tool("clew_list_runs", "List runs."),
             self._make_fake_tool("clew_stats", "Stats."),
         ]
         with self._patch_get_tools(tools):
@@ -705,7 +705,7 @@ class TestMcpListTools:
 
     def test_list_tools_json_tool_has_description_key(self, runner):
         """Each entry in JSON 'tools' array has a 'description' field."""
-        fake_tool = self._make_fake_tool("clew_list", "List runs.")
+        fake_tool = self._make_fake_tool("clew_list_runs", "List runs.")
         with self._patch_get_tools([fake_tool]):
             result = runner.invoke(main, ["mcp", "list-tools", "--json"])
         parsed = json.loads(result.output)
@@ -959,7 +959,7 @@ class TestMcpFormatToolSignature:
         from scitex_clew._cli._mcp import _format_tool_signature
 
         tool = MagicMock()
-        tool.name = "clew_list"
+        tool.name = "clew_list_runs"
         tool.parameters = {
             "properties": {"limit": {"type": "integer", "default": 50}},
             "required": [],

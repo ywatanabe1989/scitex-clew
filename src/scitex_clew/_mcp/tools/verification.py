@@ -43,7 +43,7 @@ def register_tools(mcp: FastMCP) -> None:
     """Register all clew verification tools."""
 
     @mcp.tool()
-    async def clew_list(
+    async def clew_list_runs(
         limit: int = 50,
         status_filter: Optional[str] = None,
     ) -> str:
