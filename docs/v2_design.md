@@ -1,107 +1,118 @@
 # Clew v2 — Agent Reasoning Substrate (Design Doc)
 
-Status: design only. Implementation lives on `feat/v2-agent-substrate`. v1 (current passive-verification API) is unaffected.
+Status: design only. v1 (current passive-verification API) is the *substrate*; v2 is mostly *skill + harness + experiment*, not new code in this package.
 
-## Motivation
+## What changed from the first draft
 
-v1 framing is *passive verification*: a human writes the code, decorates with `@stx.session`, and Clew records hashes for later re-execution and tamper detection. This works (bix-6 demo: 9/9 reproducibility, 5/5 tamper detection across 9 BixBench capsules).
+The first draft proposed a 7-call new API surface (`query_dag`, `register_claim`, `verify_dag_complete`, …). On review against `~/proj/scitex-clew/src/scitex_clew/__init__.py` and the MCP server, those calls already exist as `clew.chain`, `clew.add_claim`, `clew.dag`, `clew.rerun`, `clew.list_claims`, `clew.verify_claim`. The v1 package ships 19 public Python functions plus 9 MCP tools. For an agent reasoning substrate, that surface is essentially complete.
 
-v2 framing is *active reasoning substrate*: an AI agent solving a multi-step computation queries the Clew DAG at each reasoning step, registers intermediate claims as it computes, and verifies dependency closure before committing a final answer. The fast SQLite DAG already implemented in v1 makes per-step queries affordable (millisecond-scale).
+The genuine gap is not API; it is the *prompt scaffolding and pilot harness* that makes an agent actually use the API at every reasoning step. v2 is a thin layer on top of v1.
 
-The killer experiment is BixBench-205 with three arms (agent baseline, agent + Clew, agent + scitex without Clew) measuring accuracy delta, token cost, and backtracking rate.
+## Existing v1 surface (what an agent already has)
 
-## Minimum API surface (7 calls)
-
-These wrap the existing v1 SQLite DAG; they do not introduce new persistence.
+Python API (subset relevant to agentic use):
 
 ```python
 import scitex_clew as clew
 
-# Query — read-only operations on the DAG
-clew.query_dag(target: str, depth: int | None = None) -> dict
-clew.list_pending_claims() -> list[str]
-clew.show_path(from_: str, to: str) -> list[str]
-clew.verify_dag_complete(target: str) -> tuple[bool, list[str]]
-
-# Register — mutate the DAG
-clew.register_claim(id: str, value, supports: list[str], code: str | None = None) -> str
-clew.assert_consistency(claim_id: str) -> tuple[bool, list[str]]
-clew.recompute_from(node_id: str) -> dict
+clew.chain(target_file)            # target → source dependency chain
+clew.dag(targets)                  # full DAG; returns is_verified + missing_runs
+clew.add_claim(id, value, ...)     # register manuscript / output assertion
+clew.verify_claim(claim_id)        # check claim still hashes-equal
+clew.list_claims(...)              # enumerate registered claims
+clew.rerun(target)                 # re-execute and compare in sandbox
+clew.rerun_dag(targets)            # rerun full DAG topo-sorted
+clew.mermaid(...)                  # generate visualization
 ```
 
-Concrete signatures and SQL equivalents in `v2_api_spec.md` (TBD). Each call returns a JSON-serializable structure suitable for direct LLM consumption.
+MCP tools (over `mcp__scitex__clew_*`): `clew_status`, `clew_list`, `clew_run`, `clew_chain`, `clew_dag`, `clew_mermaid`, `clew_rerun_dag`, `clew_rerun_claims`, `clew_stats`. All return JSON suitable for direct LLM consumption.
 
-## The agentic-clew skill
+DB-level operations (`_db/_chain.py`): `get_chain`, `get_children`, `set_parent`. The graph-traversal primitives the audit named.
 
-A single skill markdown file shipped with scitex-clew, loaded by agents at session start. Imperative form (per the audit's recommendation that LLMs follow `MUST` better than indicative descriptions).
+## Real v2 deliverables
+
+### 1. The `agentic-clew` skill
+
+Single markdown file in `_skills/scitex-clew/` (or wherever the project's skill loader picks them up). Imperative form, since LLMs follow `MUST` better than indicative descriptions. Sketch:
 
 ```markdown
 # agentic-clew skill
 
-When solving any multi-step computation:
+When solving a multi-step computation that produces a final answer:
 
-1. BEFORE computing X, run `clew.query_dag(target=X)` to see what
-   inputs are required and which are already registered.
+1. BEFORE computing X, call `clew_chain(target=X)` to see what sources
+   X will depend on, and `clew_list` filtered to the current session
+   to see what is already registered.
 2. AFTER computing each intermediate value, MUST call
-   `clew.register_claim(id=<descriptive>, value=<result>, supports=[<upstream>])`.
-3. BEFORE producing a final answer, MUST call
-   `clew.verify_dag_complete(target=<final>)`. Abort if False.
-4. If a registered claim turns out wrong, call `clew.recompute_from(...)`
-   instead of starting over — downstream re-validates automatically.
+   `clew.add_claim(id=<name>, value=<result>, parent_session=<upstream session>)`.
+   The id should be descriptive (e.g. `acute_correlation_spearman`).
+3. BEFORE producing a final answer, MUST call `clew_dag(target_files=<final>)`
+   and confirm `is_verified=True`. If a `missing_runs` list comes back,
+   compute those before answering.
+4. If a registered claim turns out wrong, call `clew_rerun_dag` with the
+   affected target and let the existing topo-sorted re-execution
+   propagate. Do not start over.
 
-Force + reward design:
-- Returns from non-registered intermediates are not committed.
-- Registered claims get hash-cached: re-runs of identical inputs
-  return cached results in milliseconds (10× speedup proven by
-  bix-6: 87s → 8s on second run via mygene cache).
+Force + reward:
+- Final answers without a passing `clew_dag` verification are not committed.
+- Repeated computation of the same input set is automatically a cache
+  hit on Clew's side — re-running an identical pipeline returns in ms,
+  not the seconds the original took (proven by bix-6: 87 s → 8 s on
+  second run via the existing mygene cache pattern).
 ```
 
-## Pilot experiment (1 capsule, 2 arms)
+### 2. One small genuine API addition
 
-Smallest informative test before scaling.
+The v1 API does not currently have a *single-call* "register an intermediate value with explicit support set inside an active session" verb. `clew.add_claim` is oriented toward manuscript-final claims; intermediates currently flow through `stx.io.save()` + the session decorator. For agentic use this should become a thin convenience wrapper:
 
-| Capsule | bix-6 (CRISPRa screen, 23 code cells, 2 reference questions) |
-|---|---|
-| Agent | claude-haiku-4-5 (cheapest; if signal exists here, scaling to opus is safe) |
-| Arm A — control | Agent + plain Jupyter, no Clew tooling |
-| Arm B — treatment | Agent + agentic-clew skill + 7-call API |
-| Trials | 5 per arm (10 total runs) |
-| Metric | accuracy match to BixBench reference (`q1=chronic round 2`, `q5=25%`); tokens used; wall clock; backtracking events |
-| Pass criterion (directional) | B ≥ 4/5 AND A ≤ 2/5 — modest signal worth scaling |
-| Fail criterion | B ≤ A on accuracy — agentic Clew adds nothing measurable; revisit API design |
+```python
+clew.register_intermediate(
+    name: str,                  # human-readable id
+    value,                      # the computed object
+    supports: list[str],        # explicit upstream claim ids or paths
+    session_id: str | None = None,
+) -> str                        # returns the hash
+```
 
-Agent receives only: the raw `xlsx` data, the `BixBench.jsonl` row(s) for bix-6 questions, and (in arm B) the agentic-clew skill prompt + access to `clew.*` calls. No notebook, no hint, no example code.
+Implementation: ~30 lines on top of `_claim.add_claim` plus the existing `_db/_chain.set_parent` to record the explicit support edges. Lives on `feat/v2-agent-substrate` until the v1 arxiv ships.
 
-## Scaling plan (post-pilot)
+### 3. The pilot harness
 
-If pilot signal is positive, three escalations in order:
+Lives in `~/proj/paper-scitex-clew/scripts/v2_pilot/bix6_agent_pilot.py`, NOT in scitex-clew (it is project-side experimentation, not core infrastructure).
 
-1. Same arms × 5 capsules (bix-6, bix-19, bix-29, bix-33, bix-16 — the 5 already verified to be reproducible). N = 5 × 2 × 5 = 50 runs. Statistical baseline.
-2. Add a third arm C (agent + scitex without Clew skill) to ablate Clew's contribution from scitex-the-framework. N = 5 × 3 × 5 = 75 runs.
-3. Full BixBench-205 × 3 arms × 3 trials = ~1850 runs. Spartan with `clew.sif` overnight.
+| | Arm A | Arm B | Arm C |
+|---|---|---|---|
+| Agent | claude-haiku-4-5 | claude-haiku-4-5 | claude-haiku-4-5 |
+| Tooling | plain Jupyter | scitex + clew + agentic-clew skill | scitex without clew skill |
+| Capsule | bix-6 | bix-6 | bix-6 |
+| Trials | 5 | 5 | 5 |
 
-Cost envelope at claude-haiku rates: arm × capsule × trial costs roughly $0.05; full benchmark ~$90. Wall clock dominated by sequential agent reasoning (~2-5 min per run); Spartan parallelism brings full benchmark to ~6-12 hours.
+Metrics: accuracy match to BixBench reference (`q1=chronic round 2`, `q5=25%`); tokens used; wall clock; backtracking events (count of `recompute_from` / re-fit calls); DAG complexity (B only — n claims registered, depth).
 
-## Implementation order
+Pass criterion (directional, n=5 per arm): B ≥ 4/5 AND A ≤ 2/5. Modest signal, worth scaling. Fail criterion: B ≤ A on accuracy — the skill adds nothing measurable; revisit phrasing or the force+reward design.
 
-1. v2 API stubs in `_v2_api.py` with full type signatures + docstrings, no behavior. Smoke-test via `python -c "from scitex_clew import _v2_api"` to confirm the module imports.
-2. Implement each call against the existing SQLite schema. Order: query first (read-only, low risk), then register (mutates the DAG; needs careful schema migration if v2 needs new columns).
-3. Add the agentic-clew skill markdown to `~/proj/scitex-clew/_skills/scitex-clew/`. Imperative phrasing throughout.
-4. Pilot harness at `~/proj/paper-scitex-clew/scripts/v2_pilot/bix6_agent_pilot.py`. Two arms; 5 trials each; capture all 4 metrics; aggregate to `summary.json`.
-5. Run pilot; if signal, scale per the plan above.
+## Scaling plan once pilot is positive
 
-## Out of scope for v2
+Same arms × 5 capsules (the 5 already-verified-reproducible from BixBench: bix-6, bix-19, bix-29, bix-33, bix-16). N = 5 × 3 × 5 = 75 runs. Statistical baseline.
+
+If the 5-capsule study replicates the pilot's signal, full BixBench-205 × 3 arms × 3 trials ≈ 1850 runs. Spartan with `clew.sif` overnight; cost envelope at claude-haiku rates ≈ $90.
+
+## Out of scope
 
 Multi-agent collaboration on shared DAGs; reasoning over claims across published papers; live editing of the DAG by humans during agent runs. All deferrable.
 
-## Risks
+## Risks and mitigations
 
-- **Agent doesn't call the API enough.** Mitigation: imperative skill phrasing; force-use design where returns require `register_claim`. Audit-flagged.
-- **API too verbose for agents to use efficiently.** Mitigation: each call's return is small (≤200 tokens of JSON). Per-step query cost stays under 5% of agent context.
-- **DAG queries become slow at scale.** Mitigation: SQLite indexes already in v1; profile at the BixBench-205 stage. If query latency exceeds 100 ms, pre-compute reachability into a flat materialized view.
+The agent does not call Clew often enough → imperative skill phrasing, plus making un-registered intermediates structurally unable to land in the final answer.
+
+The skill phrasing is too verbose and burns context → keep skill ≤200 lines; the existing 19-call API + 9 MCP tools should not need additional wrapper documentation in the skill itself, only the *when-to-call* discipline.
+
+DAG queries become slow at full BixBench-205 scale → SQLite is already indexed in v1; profile at the 5-capsule study if latency exceeds 100 ms per query, pre-compute reachability into a flat materialized view.
 
 ## Decision points (user-owned)
 
-1. v2 ships as part of the existing `scitex-clew` package, or as a separate `scitex-clew-reason` (auditor's suggestion to avoid diluting the v1 verification claim)?
-2. Pilot timing: now (parallel with v1 arxiv finalization), or post-arxiv?
-3. If positive signal, target Nature 本誌 directly with a paired v1+v2 narrative, or stage as v2 arxiv → Nature Methods → Nature?
+The skill ships with `scitex-clew` so any agentic-Clew user gets it automatically, or as a separate repo `agentic-clew` to keep v1's verification claim narrow?
+
+The pilot runs now (parallel with v1 arxiv finalization, on a feature branch), or strictly after arxiv ships?
+
+If positive signal, target Nature 本誌 with paired v1+v2 narrative, or stage v2 arxiv → Nature Methods → Nature?
