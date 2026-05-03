@@ -1,7 +1,8 @@
 ---
-description: Basic scitex-clew API, session tracking, and first verification run.
-name: quick-start
-tags: [scitex-clew, scitex-package]
+description: |
+  [TOPIC] Quick Start
+  [DETAILS] Basic scitex-clew API, session tracking, and first verification run.
+tags: [scitex-clew-quick-start]
 ---
 
 # Quick Start

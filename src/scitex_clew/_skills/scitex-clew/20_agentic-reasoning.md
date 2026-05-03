@@ -1,9 +1,8 @@
 ---
-description: Use Clew as an active reasoning substrate during multi-step agentic computation. The agent queries the existing Clew DAG before each step, registers each intermediate value as a hashed claim, and verifies dependency closure before producing a final answer. Distinct from passive verification (re-checking a human-written script after the fact). Apply when an LLM agent is solving a multi-step scientific or computational task end-to-end — bioinformatics analysis, experimental data interpretation, pipeline construction, multi-method convergence problems.
-allowed-tools: mcp__scitex__clew_*
-primary_interface: skills
-name: agentic-reasoning
-tags: [scitex-clew, scitex-package, agentic]
+description: |
+  [TOPIC] Agentic Reasoning
+  [DETAILS] Use Clew as an active reasoning substrate during multi-step agentic computation. The agent queries the existing Clew DAG before each step, registers each intermediate value as a hashed claim, and verifies dependency closure before producing a final answer. Distinct from passive verification (re-checking a human-written script after the fact). Apply when an LLM agent is solving a multi-step scientific or computational task end-to-end — bioinformatics analysis, experimental data interpretation, pipeline construction, multi-method convergence problems.
+tags: [scitex-clew-agentic-reasoning]
 ---
 
 # Agentic Reasoning with Clew

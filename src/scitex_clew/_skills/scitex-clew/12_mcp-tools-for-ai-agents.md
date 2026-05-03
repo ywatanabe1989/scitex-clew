@@ -1,7 +1,8 @@
 ---
-description: MCP tool reference for AI agents using scitex-clew via the clew_* tools.
-name: mcp-tools-for-ai-agents
-tags: [scitex-clew, scitex-package]
+description: |
+  [TOPIC] Mcp Tools For Ai Agents
+  [DETAILS] MCP tool reference for AI agents using scitex-clew via the clew_* tools.
+tags: [scitex-clew-mcp-tools-for-ai-agents]
 ---
 
 # MCP Tools for AI Agents

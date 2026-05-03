@@ -1,7 +1,8 @@
 ---
-description: Collapse related files into single DAG nodes via pattern, directory, or session-bundle groupers while preserving every hash via Merkle roots.
-name: grouping
-tags: [scitex-clew, scitex-package]
+description: |
+  [TOPIC] Grouping
+  [DETAILS] Collapse related files into single DAG nodes via pattern, directory, or session-bundle groupers while preserving every hash via Merkle roots.
+tags: [scitex-clew-grouping]
 ---
 
 # Grouping (scitex-clew)

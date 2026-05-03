@@ -1,7 +1,8 @@
 ---
-name: scitex-clew-env-vars
-description: Environment variables read by scitex-clew at import / runtime. Follow SCITEX_<MODULE>_* convention — see general/10_arch-environment-variables.md.
-tags: [scitex-clew, scitex-package]
+description: |
+  [TOPIC] Env Vars
+  [DETAILS] Environment variables read by scitex-clew at import / runtime. Follow SCITEX_<MODULE>_* convention — see general/10_arch-environment-variables.md.
+tags: [scitex-clew-env-vars]
 ---
 
 # scitex-clew — Environment Variables
