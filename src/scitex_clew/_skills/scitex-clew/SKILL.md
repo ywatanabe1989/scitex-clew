@@ -32,6 +32,7 @@ scitex_clew.status(...)
 
 * [01_quick-start.md](01_quick-start.md), [02_grouping.md](02_grouping.md) — basics + DAG-node grouping
 * [10_common-workflows.md](10_common-workflows.md), [11_cli-commands.md](11_cli-commands.md), [12_mcp-tools-for-ai-agents.md](12_mcp-tools-for-ai-agents.md) — workflows + CLI + MCP refs
+* [20_agentic-reasoning.md](20_agentic-reasoning.md) — when-to-call discipline for AI agents using Clew as an active reasoning substrate (v2 framing)
 
 ## MCP Tools
 
