@@ -62,7 +62,8 @@ all = [
 ]
 
 [project.scripts]
-clew = "scitex_clew._cli:main"
+clew = "scitex_clew._cli._main:main"
+scitex-clew = "scitex_clew._cli._main:main"
 [project.entry-points."scitex_dev.docs"]
 scitex-clew = "scitex_clew"
 [project.entry-points."scitex_dev.skills"]
