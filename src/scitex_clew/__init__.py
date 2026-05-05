@@ -117,6 +117,7 @@ from ._claim import (
     verify_claims_dag as _verify_claims_dag,
 )
 from ._dag import verify_dag as _verify_dag
+from ._dag import verify_dag_strict as _verify_dag_strict
 from ._db import VerificationDB as _VerificationDB
 from ._db import get_db as _get_db
 from ._db import set_db as _set_db
@@ -231,8 +232,22 @@ def stats():
 
 
 @_supports_return_as
-def dag(targets=None, claims=False):
-    """Verify the DAG for multiple targets or all claims."""
+def dag(targets=None, claims=False, strict=False):
+    """Verify the DAG for multiple targets or all claims.
+
+    Parameters
+    ----------
+    targets : list of str or Path, optional
+        Target files to verify (mutually exclusive with ``claims``).
+    claims : bool, optional
+        If True, build the DAG from every registered claim.
+    strict : bool, optional
+        If True (F2), return a failure-attribution dict with
+        ``failed_node`` / ``root_cause`` / ``invalidated_claims`` /
+        ``still_valid_claims`` instead of a ``DAGVerification``.
+    """
+    if strict:
+        return _verify_dag_strict(targets=targets, claims=claims)
     if claims:
         return _verify_claims_dag()
     return _verify_dag(targets or [])

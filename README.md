@@ -174,6 +174,24 @@ clew stats                                 # Database statistics
 clew mermaid                               # Generate Mermaid diagram
 clew list-python-apis                      # List Python API tree
 clew mcp list-tools                        # List MCP tools
+
+# Claims, hashing, stamping (F1)
+clew claim add --file-path paper.tex --type statistic --value "p=0.003"
+clew claim list
+clew claim verify <claim_id>
+clew hash-file path/to/data.csv
+clew hash-directory path/to/dir/
+clew stamp --backend file
+clew list-stamps
+clew check-stamp [STAMP_ID]
+
+# Universal --json on every command (F5)
+clew --json status
+clew status --json
+clew --json list --limit 20
+
+# Strict DAG verification with failure attribution (F2)
+clew dag --strict --json --target results/figure.csv
 ```
 
 > **[Full CLI reference](https://scitex-clew.readthedocs.io/en/latest/quickstart.html)**
@@ -192,14 +210,17 @@ AI agents can verify reproducibility and trace provenance autonomously.
 | `clew_status` | Git-status-like overview |
 | `clew_run` | Verify a specific run |
 | `clew_chain` | Trace file provenance chain |
-| `clew_dag` | Verify full DAG |
+| `clew_dag` | Verify full DAG (`strict=True` returns failure attribution, F2) |
 | `clew_list_runs` | List tracked runs |
 | `clew_stats` | Database statistics |
 | `clew_mermaid` | Generate Mermaid DAG diagram |
 | `clew_rerun_dag` | Rerun full DAG in sandbox |
 | `clew_rerun_claims` | Rerun all claim-backing sessions |
+| `clew_claim_add` / `clew_claim_list` / `clew_claim_verify` | Claim CRUD (F1) |
+| `clew_hash_file` / `clew_hash_directory` | File/directory hashing (F1) |
+| `clew_stamp` / `clew_list_stamps` / `clew_check_stamp` | Temporal stamping (F1) |
 
-<sub><b>Table 3.</b> Nine MCP tools available for AI-assisted verification. All tools accept JSON parameters and return JSON results.</sub>
+<sub><b>Table 3.</b> MCP tools available for AI-assisted verification. All tools accept JSON parameters and return JSON results.</sub>
 
 ```bash
 clew mcp start
