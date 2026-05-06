@@ -185,8 +185,20 @@ def installation_deprecated(ctx) -> None:
 
 
 @mcp.command("install")
-def install() -> None:
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Accepted for §2; this verb is informational, never mutates state.",
+)
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    help="Accepted for §2; this verb is informational, never mutates state.",
+)
+def install(dry_run, yes) -> None:
     """Show installation instructions for MCP server integration."""
+    del dry_run, yes  # audit §2 — no-op flags
     click.echo("Install scitex-clew with MCP support:")
     click.echo()
     click.echo("  pip install scitex-clew[mcp]")
