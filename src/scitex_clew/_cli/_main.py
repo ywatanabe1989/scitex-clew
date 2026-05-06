@@ -437,3 +437,14 @@ else:
         attach_shell_completion(main, prog_name="scitex-clew")
     except ImportError:
         pass
+
+
+# audit §4 — inject version into root --help
+try:
+    from importlib.metadata import version as _v
+    main.help = (
+        f"scitex-clew (v{_v('scitex-clew')}) — "
+        + (main.help or "").lstrip()
+    )
+except Exception:
+    pass
