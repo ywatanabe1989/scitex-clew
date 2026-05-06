@@ -276,6 +276,7 @@
     <span class="n">verify_claims_dag</span> <span class="k">as</span> <span class="n">_verify_claims_dag</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._dag</span><span class="w"> </span><span class="kn">import</span> <span class="n">verify_dag</span> <span class="k">as</span> <span class="n">_verify_dag</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._dag</span><span class="w"> </span><span class="kn">import</span> <span class="n">verify_dag_strict</span> <span class="k">as</span> <span class="n">_verify_dag_strict</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._db</span><span class="w"> </span><span class="kn">import</span> <span class="n">VerificationDB</span> <span class="k">as</span> <span class="n">_VerificationDB</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._db</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_db</span> <span class="k">as</span> <span class="n">_get_db</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._db</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_db</span> <span class="k">as</span> <span class="n">_set_db</span>
@@ -407,8 +408,22 @@
 <div class="viewcode-block" id="dag">
 <a class="viewcode-back" href="../api/scitex_clew.html#scitex_clew.dag">[docs]</a>
 <span class="nd">@_supports_return_as</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">dag</span><span class="p">(</span><span class="n">targets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">claims</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify the DAG for multiple targets or all claims.&quot;&quot;&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">dag</span><span class="p">(</span><span class="n">targets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">claims</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify the DAG for multiple targets or all claims.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    targets : list of str or Path, optional</span>
+<span class="sd">        Target files to verify (mutually exclusive with ``claims``).</span>
+<span class="sd">    claims : bool, optional</span>
+<span class="sd">        If True, build the DAG from every registered claim.</span>
+<span class="sd">    strict : bool, optional</span>
+<span class="sd">        If True (F2), return a failure-attribution dict with</span>
+<span class="sd">        ``failed_node`` / ``root_cause`` / ``invalidated_claims`` /</span>
+<span class="sd">        ``still_valid_claims`` instead of a ``DAGVerification``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">strict</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_verify_dag_strict</span><span class="p">(</span><span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span> <span class="n">claims</span><span class="o">=</span><span class="n">claims</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">claims</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">_verify_claims_dag</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">_verify_dag</span><span class="p">(</span><span class="n">targets</span> <span class="ow">or</span> <span class="p">[])</span></div>
