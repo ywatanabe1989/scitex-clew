@@ -111,6 +111,41 @@ Requires Python >= 3.10. **Zero dependencies** — pure stdlib + sqlite3.
 pip install scitex-clew
 ```
 
+## Architecture
+
+```mermaid
+graph LR
+    S[Source<br/>01_download.py] --> I[Input<br/>raw_data.csv]
+    I --> P[Processing<br/>03_analyze.py]
+    P --> O[Output<br/>figure1.png]
+    O --> C[Claim<br/>'Fig 1: p<0.05']
+    classDef src fill:#cfe8ff,stroke:#1f6feb
+    classDef inp fill:#e6ffec,stroke:#1a7f37
+    classDef proc fill:#fff8c5,stroke:#9a6700
+    classDef out fill:#ffe0b2,stroke:#bc4c00
+    classDef cl fill:#ffd6cc,stroke:#cf222e
+    class S src
+    class I inp
+    class P proc
+    class O out
+    class C cl
+```
+
+```
+scitex-clew/
+├── src/scitex_clew/
+│   ├── __init__.py              # status, run, chain, dag, rerun, mermaid
+│   ├── _db.py                   # sqlite3 hash-linked DAG store
+│   ├── _hash.py                 # file + directory Merkle hashing
+│   ├── groupers/                # pattern / directory / auto / compose
+│   ├── _claim/                  # claim CRUD + verification
+│   ├── _stamp/                  # temporal stamping backends
+│   ├── _cli/                    # clew entrypoint (recursive --help)
+│   ├── _mcp_tools/              # MCP tools for AI agents
+│   └── _skills/                 # workflow skill pages
+└── tests/
+```
+
 ## Quickstart
 
 ```python
@@ -251,6 +286,13 @@ scitex-dev skills export --package scitex-clew  # Export to Claude Code
 | `common-workflows` | Claims, DAG patterns, stamps, reproducibility |
 
 </details>
+
+## Demo
+
+<p align="center">
+  <img src="src/scitex_clew/dag.png" alt="DAG verification example" width="80%"/>
+</p>
+<p align="center"><sub><b>Figure 2.</b> Live DAG verification. Green nodes are sessions whose recorded hashes still match disk; red nodes flag a drift. <code>clew dag --strict</code> walks claims back to raw data and prints the first failure.</sub></p>
 
 ## Part of SciTeX
 
