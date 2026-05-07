@@ -752,69 +752,72 @@ class TestMcpListTools:
 
 
 class TestCompletionCommand:
-    """clew completion <shell> generates a shell completion script."""
+    """`clew print-shell-completion --shell <bash|zsh|fish>` (audit-cli §1a).
 
-    def _invoke_completion(self, runner, shell: str):
-        """Invoke completion with a mock subprocess so no real clew binary is needed."""
+    The legacy `clew completion <SHELL>` shape was split into
+    `print-shell-completion` and `install-shell-completion`. The
+    underlying mechanism still shells out via `_SCITEX_CLEW_COMPLETE`
+    (Click's auto-completion env var), so the tests mock subprocess.run.
+    """
+
+    _ENV_VAR = "_SCITEX_CLEW_COMPLETE"
+
+    def _invoke_print(self, runner, shell: str):
         mock_proc = MagicMock()
-        mock_proc.stdout = f"# {shell} completion for clew\ncomplete -F _clew clew\n"
+        mock_proc.stdout = f"# {shell} completion for scitex-clew\n"
         mock_proc.returncode = 0
-
-        with patch("subprocess.run", return_value=mock_proc):
-            return runner.invoke(main, ["completion", shell])
+        with patch(
+            "scitex_dev._cli._completion.subprocess.run", return_value=mock_proc
+        ):
+            return runner.invoke(main, ["print-shell-completion", "--shell", shell])
 
     def test_bash_completion_exit_code(self, runner):
-        result = self._invoke_completion(runner, "bash")
-        assert result.exit_code == 0
+        assert self._invoke_print(runner, "bash").exit_code == 0
 
     def test_zsh_completion_exit_code(self, runner):
-        result = self._invoke_completion(runner, "zsh")
-        assert result.exit_code == 0
+        assert self._invoke_print(runner, "zsh").exit_code == 0
 
     def test_bash_completion_output_not_empty(self, runner):
-        result = self._invoke_completion(runner, "bash")
-        # stdout echoed from mock_proc.stdout
-        assert len(result.output.strip()) > 0
+        assert len(self._invoke_print(runner, "bash").output.strip()) > 0
 
     def test_zsh_completion_output_not_empty(self, runner):
-        result = self._invoke_completion(runner, "zsh")
-        assert len(result.output.strip()) > 0
+        assert len(self._invoke_print(runner, "zsh").output.strip()) > 0
 
     def test_invalid_shell_fails(self, runner):
-        """Passing an unsupported shell name must cause a non-zero exit."""
-        result = runner.invoke(main, ["completion", "powershell"])
+        result = runner.invoke(
+            main, ["print-shell-completion", "--shell", "powershell"]
+        )
         assert result.exit_code != 0
 
-    def test_completion_help(self, runner):
-        result = runner.invoke(main, ["completion", "--help"])
+    def test_print_completion_help(self, runner):
+        result = runner.invoke(main, ["print-shell-completion", "--help"])
         assert result.exit_code == 0
-        assert "bash" in result.output or "shell" in result.output.lower()
+        assert "shell" in result.output.lower()
 
     def test_bash_completion_calls_subprocess(self, runner):
-        """Verify that subprocess.run is called with the expected _CLEW_COMPLETE env."""
         mock_proc = MagicMock()
         mock_proc.stdout = "# bash completion\n"
         mock_proc.returncode = 0
-
-        with patch("subprocess.run", return_value=mock_proc) as mock_run:
-            runner.invoke(main, ["completion", "bash"])
+        with patch(
+            "scitex_dev._cli._completion.subprocess.run", return_value=mock_proc
+        ) as mock_run:
+            runner.invoke(main, ["print-shell-completion", "--shell", "bash"])
 
         mock_run.assert_called_once()
-        call_kwargs = mock_run.call_args
-        env = call_kwargs[1].get("env") or call_kwargs.kwargs.get("env", {})
-        assert env.get("_CLEW_COMPLETE") == "bash_source"
+        env = mock_run.call_args.kwargs.get("env") or {}
+        assert env.get(self._ENV_VAR) == "bash_source"
 
     def test_zsh_completion_calls_subprocess_with_zsh_source(self, runner):
-        """Verify _CLEW_COMPLETE env var is set to 'zsh_source' for zsh."""
         mock_proc = MagicMock()
         mock_proc.stdout = "# zsh completion\n"
         mock_proc.returncode = 0
+        with patch(
+            "scitex_dev._cli._completion.subprocess.run", return_value=mock_proc
+        ) as mock_run:
+            runner.invoke(main, ["print-shell-completion", "--shell", "zsh"])
 
-        with patch("subprocess.run", return_value=mock_proc) as mock_run:
-            runner.invoke(main, ["completion", "zsh"])
-
-        env = mock_run.call_args[1].get("env", {})
-        assert env.get("_CLEW_COMPLETE") == "zsh_source"
+        env = mock_run.call_args.kwargs.get("env") or {}
+        assert env.get(self._ENV_VAR) == "zsh_source"
 
 
 # ===========================================================================

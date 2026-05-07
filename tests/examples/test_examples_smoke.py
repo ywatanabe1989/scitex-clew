@@ -128,9 +128,15 @@ class TestInitExamples:
         assert result["path"] == str(dest)
 
     def test_multi_parent_variant_missing_raises(self, tmp_path):
-        src = self._make_fake_examples_dir(tmp_path)
+        # _find_examples_dir(variant) returns None when the bundled variant
+        # directory cannot be located; init_examples must surface that as
+        # FileNotFoundError. The previous test patched it to a non-None
+        # value, which never tripped the None-branch.
         dest = tmp_path / "dest"
-        with patch("scitex_clew._examples._find_examples_dir", return_value=src):
+        with patch(
+            "scitex_clew._examples._find_examples_dir",
+            side_effect=lambda variant: None if variant == "multi_parent" else None,
+        ):
             with pytest.raises(FileNotFoundError):
                 init_examples(dest, variant="multi_parent")
 
