@@ -509,31 +509,31 @@ class TestMcpInstallation:
     """clew mcp installation prints setup instructions."""
 
     def test_exit_code(self, runner):
-        result = runner.invoke(main, ["mcp", "installation"])
+        result = runner.invoke(main, ["mcp", "install"])
         assert result.exit_code == 0
 
     def test_shows_pip_install(self, runner):
-        result = runner.invoke(main, ["mcp", "installation"])
+        result = runner.invoke(main, ["mcp", "install"])
         assert "pip install" in result.output
 
     def test_shows_mcp_extra(self, runner):
-        result = runner.invoke(main, ["mcp", "installation"])
+        result = runner.invoke(main, ["mcp", "install"])
         assert "mcp" in result.output
 
     def test_shows_mcp_servers_block(self, runner):
-        result = runner.invoke(main, ["mcp", "installation"])
+        result = runner.invoke(main, ["mcp", "install"])
         assert "mcpServers" in result.output
 
     def test_shows_clew_mcp_start(self, runner):
-        result = runner.invoke(main, ["mcp", "installation"])
+        result = runner.invoke(main, ["mcp", "install"])
         assert "mcp" in result.output and "start" in result.output
 
     def test_shows_verify_instructions(self, runner):
-        result = runner.invoke(main, ["mcp", "installation"])
+        result = runner.invoke(main, ["mcp", "install"])
         assert "clew mcp doctor" in result.output or "doctor" in result.output
 
     def test_installation_help(self, runner):
-        result = runner.invoke(main, ["mcp", "installation", "--help"])
+        result = runner.invoke(main, ["mcp", "install", "--help"])
         assert result.exit_code == 0
 
 
