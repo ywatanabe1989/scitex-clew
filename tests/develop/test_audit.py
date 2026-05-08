@@ -17,17 +17,12 @@ def test_audit_all_clean():
         )
     from scitex_dev.testing import audit_all_for_package
 
-    try:
-        audit_all_for_package(
-            "scitex-clew",
-            skip_rules=(
-                # CLI overhaul backlog — tracked under /overhaul-scitex.
-                "§1",  # noun leaves (`stats`, `mermaid`); umbrella bridge hand-wrap
-                "§2",  # mutating verbs missing --dry-run/--yes; reads missing --json
-                "§4",  # docstrings missing concrete examples (mechanical sweep)
-                "§6",  # MCP tool coverage gap (17/31 APIs unmapped)
-                "§6b",  # root --help missing config-path fallback prose
-            ),
-        )
-    except TypeError:
-        pytest.xfail("structural deferred; needs scitex-dev>=0.11.3 for skip_rules")
+    audit_all_for_package(
+        "scitex-clew",
+        skip_rules=(
+            # MCP tool coverage gap — 17/31 Python APIs are not yet exposed as
+            # MCP tools. Real architectural debt; per-API decision needed for
+            # each one. Tracked under /overhaul-scitex.
+            "§6",
+        ),
+    )
