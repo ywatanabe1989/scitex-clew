@@ -275,19 +275,19 @@ class TestUniversalJsonFlag:
         assert "verified_count" in parsed
 
     def test_list_top_level_json(self, runner, isolated_db):
-        result = runner.invoke(main, ["--json", "list"])
+        result = runner.invoke(main, ["--json", "list-runs"])
         assert result.exit_code == 0
         parsed = json.loads(result.output)
         assert "count" in parsed and "runs" in parsed
 
     def test_stats_top_level_json(self, runner, isolated_db):
-        result = runner.invoke(main, ["--json", "stats"])
+        result = runner.invoke(main, ["--json", "show-stats"])
         assert result.exit_code == 0
         parsed = json.loads(result.output)
         assert "total_runs" in parsed
 
     def test_mermaid_top_level_json(self, runner, isolated_db):
-        result = runner.invoke(main, ["--json", "mermaid"])
+        result = runner.invoke(main, ["--json", "print-mermaid"])
         assert result.exit_code == 0
         parsed = json.loads(result.output)
         assert "mermaid" in parsed

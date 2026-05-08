@@ -236,37 +236,37 @@ class TestListCommand:
     """clew list outputs run rows and exits 0."""
 
     def test_exit_code_empty_db(self, runner, isolated_db):
-        result = runner.invoke(main, ["list"])
+        result = runner.invoke(main, ["list-runs"])
         assert result.exit_code == 0
 
     def test_empty_db_no_rows_in_output(self, runner, isolated_db):
-        result = runner.invoke(main, ["list"])
+        result = runner.invoke(main, ["list-runs"])
         # With no runs, output should be empty or minimal
         assert result.exit_code == 0
 
     def test_populated_db_shows_session_id(self, runner, populated_db):
-        result = runner.invoke(main, ["list"])
+        result = runner.invoke(main, ["list-runs"])
         assert result.exit_code == 0
         assert populated_db["session_id"] in result.output
 
     def test_populated_db_shows_script_path(self, runner, populated_db):
-        result = runner.invoke(main, ["list"])
+        result = runner.invoke(main, ["list-runs"])
         assert "analysis.py" in result.output
 
     def test_populated_db_shows_status(self, runner, populated_db):
-        result = runner.invoke(main, ["list"])
+        result = runner.invoke(main, ["list-runs"])
         assert "success" in result.output
 
     def test_limit_option_accepted(self, runner, isolated_db):
-        result = runner.invoke(main, ["list", "--limit", "5"])
+        result = runner.invoke(main, ["list-runs", "--limit", "5"])
         assert result.exit_code == 0
 
     def test_limit_default_accepted(self, runner, isolated_db):
-        result = runner.invoke(main, ["list", "--limit", "50"])
+        result = runner.invoke(main, ["list-runs", "--limit", "50"])
         assert result.exit_code == 0
 
     def test_list_help(self, runner):
-        result = runner.invoke(main, ["list", "--help"])
+        result = runner.invoke(main, ["list-runs", "--help"])
         assert result.exit_code == 0
         assert "limit" in result.output.lower() or "runs" in result.output.lower()
 
@@ -318,32 +318,32 @@ class TestStatsCommand:
     """clew stats outputs database statistics as JSON."""
 
     def test_exit_code(self, runner, isolated_db):
-        result = runner.invoke(main, ["stats"])
+        result = runner.invoke(main, ["show-stats"])
         assert result.exit_code == 0
 
     def test_output_is_valid_json(self, runner, isolated_db):
-        result = runner.invoke(main, ["stats"])
+        result = runner.invoke(main, ["show-stats"])
         parsed = json.loads(result.output)
         assert isinstance(parsed, dict)
 
     def test_output_has_total_runs_key(self, runner, isolated_db):
-        result = runner.invoke(main, ["stats"])
+        result = runner.invoke(main, ["show-stats"])
         parsed = json.loads(result.output)
         assert "total_runs" in parsed
 
     def test_empty_db_total_runs_zero(self, runner, isolated_db):
-        result = runner.invoke(main, ["stats"])
+        result = runner.invoke(main, ["show-stats"])
         parsed = json.loads(result.output)
         assert parsed["total_runs"] == 0
 
     def test_populated_db_total_runs_one(self, runner, populated_db):
-        result = runner.invoke(main, ["stats"])
+        result = runner.invoke(main, ["show-stats"])
         assert result.exit_code == 0
         parsed = json.loads(result.output)
         assert parsed["total_runs"] == 1
 
     def test_stats_help(self, runner):
-        result = runner.invoke(main, ["stats", "--help"])
+        result = runner.invoke(main, ["show-stats", "--help"])
         assert result.exit_code == 0
         assert "stats" in result.output.lower() or "database" in result.output.lower()
 
@@ -357,26 +357,26 @@ class TestMermaidCommand:
     """clew mermaid generates a Mermaid DAG diagram."""
 
     def test_exit_code(self, runner, isolated_db):
-        result = runner.invoke(main, ["mermaid"])
+        result = runner.invoke(main, ["print-mermaid"])
         assert result.exit_code == 0
 
     def test_output_is_not_empty(self, runner, populated_db):
-        result = runner.invoke(main, ["mermaid"])
+        result = runner.invoke(main, ["print-mermaid"])
         assert result.exit_code == 0
         assert len(result.output.strip()) > 0
 
     def test_output_contains_mermaid_keyword(self, runner, populated_db):
-        result = runner.invoke(main, ["mermaid"])
+        result = runner.invoke(main, ["print-mermaid"])
         # Mermaid diagrams start with "graph" or "flowchart" or similar
         combined = result.output.lower()
         assert "graph" in combined or "flowchart" in combined or "mermaid" in combined
 
     def test_claims_flag_accepted(self, runner, isolated_db):
-        result = runner.invoke(main, ["mermaid", "--claims"])
+        result = runner.invoke(main, ["print-mermaid", "--claims"])
         assert result.exit_code == 0
 
     def test_mermaid_help(self, runner):
-        result = runner.invoke(main, ["mermaid", "--help"])
+        result = runner.invoke(main, ["print-mermaid", "--help"])
         assert result.exit_code == 0
         assert "mermaid" in result.output.lower() or "dag" in result.output.lower()
 
