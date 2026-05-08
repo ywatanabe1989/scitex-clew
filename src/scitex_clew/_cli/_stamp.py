@@ -14,7 +14,15 @@ import click
 from ._claim import _emit, _json_mode
 
 
-@click.command("stamp")
+@click.command(
+    "stamp",
+    epilog=(
+        "Example:\n"
+        "  $ scitex-clew stamp\n"
+        "  $ scitex-clew stamp --backend rfc3161 --service-url <tsa-url>\n"
+        "  $ scitex-clew stamp --session-ids id1,id2 --json"
+    ),
+)
 @click.option(
     "--backend",
     default="file",
@@ -75,11 +83,27 @@ def stamp(
     _emit(ctx, payload, human)
 
 
-@click.command("list-stamps")
+@click.command(
+    "list-stamps",
+    epilog=(
+        "Example:\n"
+        "  $ scitex-clew list-stamps\n"
+        "  $ scitex-clew list-stamps --limit 100 --json"
+    ),
+)
 @click.option("--limit", type=int, default=20, show_default=True, help="Max stamps.")
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit JSON (also accepted at top level).",
+)
 @click.pass_context
-def list_stamps(ctx: click.Context, limit: int) -> None:
+def list_stamps(ctx: click.Context, limit: int, as_json: bool) -> None:
     """List recorded stamps."""
+    if as_json:
+        ctx.obj = ctx.obj or {}
+        ctx.obj["json"] = True
     from scitex_clew import list_stamps as _list_stamps
 
     stamps = _list_stamps(limit=limit)
@@ -96,7 +120,14 @@ def list_stamps(ctx: click.Context, limit: int) -> None:
     _emit(ctx, payload, human)
 
 
-@click.command("check-stamp")
+@click.command(
+    "check-stamp",
+    epilog=(
+        "Example:\n"
+        "  $ scitex-clew check-stamp\n"
+        "  $ scitex-clew check-stamp <stamp_id> --json"
+    ),
+)
 @click.argument("stamp_id", required=False, default=None)
 @click.pass_context
 def check_stamp(ctx: click.Context, stamp_id) -> None:

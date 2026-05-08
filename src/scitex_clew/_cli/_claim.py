@@ -50,12 +50,31 @@ def claim() -> None:
     """Manuscript-claim operations (add / list / verify)."""
 
 
-@claim.command("add")
+@claim.command(
+    "add",
+    epilog=(
+        "Example:\n"
+        "  $ scitex-clew claim add --file-path paper.tex --type statistic --value 'p=0.003'\n"
+        "  $ scitex-clew claim add --file-path paper.tex --type figure --line-number 42 --dry-run"
+    ),
+)
 @click.option(
     "--file-path",
     "file_path",
     required=True,
     help="Path to the manuscript file (e.g., paper.tex).",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Validate inputs and print the claim that would be added; do not write.",
+)
+@click.option(
+    "-y",
+    "--yes",
+    "yes",
+    is_flag=True,
+    help="Confirmation flag retained for §2 audit-cli compliance (no-op for `claim add`).",
 )
 @click.option(
     "--type",
@@ -98,9 +117,29 @@ def claim_add(
     claim_value,
     source_file,
     source_session,
+    dry_run: bool,
+    yes: bool,
 ) -> None:
     """Register a claim linking a manuscript assertion to the verification chain."""
     from scitex_clew import add_claim
+
+    del yes  # accepted for §2 compliance
+    if dry_run:
+        preview = {
+            "file_path": file_path,
+            "claim_type": claim_type,
+            "line_number": line_number,
+            "claim_value": claim_value,
+            "source_file": source_file,
+            "source_session": source_session,
+        }
+        if _json_mode(ctx):
+            click.echo(_json.dumps({"dry_run": True, "claim": preview}, indent=2))
+        else:
+            click.echo("DRY RUN — would add claim:")
+            for k, v in preview.items():
+                click.echo(f"  {k}: {v if v is not None else '(none)'}")
+        return
 
     try:
         c = add_claim(
@@ -130,7 +169,14 @@ def claim_add(
     _emit(ctx, payload, human)
 
 
-@claim.command("list")
+@claim.command(
+    "list",
+    epilog=(
+        "Example:\n"
+        "  $ scitex-clew claim list\n"
+        "  $ scitex-clew claim list --file-path paper.tex --type statistic --json"
+    ),
+)
 @click.option(
     "--file-path", "file_path", default=None, help="Filter by manuscript path."
 )
@@ -148,6 +194,12 @@ def claim_add(
     help="Filter by verification status (registered/verified/mismatch/missing/partial).",
 )
 @click.option("--limit", type=int, default=100, help="Maximum claims to list.")
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit JSON (also accepted at top level).",
+)
 @click.pass_context
 def claim_list(
     ctx: click.Context,
@@ -155,8 +207,12 @@ def claim_list(
     claim_type,
     status,
     limit: int,
+    as_json: bool,
 ) -> None:
     """List registered claims with optional filters."""
+    if as_json:
+        ctx.obj = ctx.obj or {}
+        ctx.obj["json"] = True
     from scitex_clew import list_claims
     from scitex_clew._claim import format_claims
 
@@ -172,7 +228,14 @@ def claim_list(
     _emit(ctx, payload, human)
 
 
-@claim.command("verify")
+@claim.command(
+    "verify",
+    epilog=(
+        "Example:\n"
+        "  $ scitex-clew claim verify <claim_id>\n"
+        "  $ scitex-clew claim verify paper.tex:L42 --json"
+    ),
+)
 @click.argument("claim_id_or_location")
 @click.pass_context
 def claim_verify(ctx: click.Context, claim_id_or_location: str) -> None:

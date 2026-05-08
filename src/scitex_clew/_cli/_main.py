@@ -36,11 +36,11 @@ else:
     CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
     COMMAND_CATEGORIES = [
-        ("Verification", ["status", "list", "verify", "stats", "dag"]),
+        ("Verification", ["status", "list-runs", "verify", "show-stats", "dag"]),
         ("Claims", ["claim"]),
         ("Hashing", ["hash-file", "hash-directory"]),
         ("Stamping", ["stamp", "list-stamps", "check-stamp"]),
-        ("Visualization", ["mermaid"]),
+        ("Visualization", ["print-mermaid"]),
         ("Integration", ["mcp", "list-python-apis", "completion"]),
     ]
 
@@ -134,7 +134,16 @@ else:
     def main(
         ctx: click.Context, version: bool, help_recursive: bool, as_json: bool
     ) -> None:
-        """clew - Hash-based reproducibility verification for scientific pipelines."""
+        """clew - Hash-based reproducibility verification for scientific pipelines.
+
+        \b
+        Configuration precedence (highest -> lowest):
+          1. Explicit CLI flags
+          2. ./config.yaml (project-local)
+          3. $SCITEX_CLEW_CONFIG (path to a YAML file)
+          4. ~/.scitex/clew/config.yaml (user-wide)
+          5. Built-in defaults
+        """
         ctx.ensure_object(dict)
         ctx.obj["json"] = bool(as_json)
 
@@ -158,7 +167,9 @@ else:
     # Subcommands: status, list, verify, stats, mermaid, dag
     # -----------------------------------------------------------------------
 
-    @main.command()
+    @main.command(
+        epilog="Example:\n  $ scitex-clew status\n  $ scitex-clew status --json",
+    )
     @click.option(
         "--json",
         "as_json",
@@ -182,7 +193,14 @@ else:
         else:
             click.echo(json.dumps(result, indent=2, default=str))
 
-    @main.command("list")
+    @main.command(
+        "list-runs",
+        epilog=(
+            "Example:\n"
+            "  $ scitex-clew list-runs\n"
+            "  $ scitex-clew list-runs --status success --limit 10 --json"
+        ),
+    )
     @click.option("--limit", type=int, default=50, help="Maximum number of runs.")
     @click.option(
         "--status",
@@ -213,7 +231,13 @@ else:
             script = r.get("script_path", "")
             click.echo(f"  {run_status:<8} {sid}  {script}")
 
-    @main.command()
+    @main.command(
+        epilog=(
+            "Example:\n"
+            "  $ scitex-clew verify 2026Y-05M-09D-12h00m00s_AbCd-main\n"
+            "  $ scitex-clew verify <session_id> --json"
+        ),
+    )
     @click.argument("session_id")
     @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
     @click.pass_context
@@ -254,7 +278,12 @@ else:
             ficon = "OK" if f.is_verified else "!!"
             click.echo(f"  [{ficon}] {f.role:<6} {f.path}")
 
-    @main.command()
+    @main.command(
+        "show-stats",
+        epilog=(
+            "Example:\n  $ scitex-clew show-stats\n  $ scitex-clew show-stats --json"
+        ),
+    )
     @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
     @click.pass_context
     def stats(ctx: click.Context, as_json: bool):
@@ -271,7 +300,14 @@ else:
         else:
             click.echo(json.dumps(result, indent=2, default=str))
 
-    @main.command()
+    @main.command(
+        "print-mermaid",
+        epilog=(
+            "Example:\n"
+            "  $ scitex-clew print-mermaid > dag.mmd\n"
+            "  $ scitex-clew print-mermaid --claims --json"
+        ),
+    )
     @click.option("--claims", is_flag=True, help="Build DAG from registered claims.")
     @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
     @click.pass_context
@@ -442,10 +478,8 @@ else:
 # audit §4 — inject version into root --help
 try:
     from importlib.metadata import version as _v
-    main.help = (
-        f"scitex-clew (v{_v('scitex-clew')}) — "
-        + (main.help or "").lstrip()
-    )
+
+    main.help = f"scitex-clew (v{_v('scitex-clew')}) — " + (main.help or "").lstrip()
 except Exception:
     pass
 

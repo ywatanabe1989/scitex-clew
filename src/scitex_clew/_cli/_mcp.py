@@ -86,7 +86,15 @@ def _format_tool_signature(tool, multiline: bool = False, indent: str = "  ") ->
     return f"{indent}{name_s}({', '.join(params)}){ret_type}"
 
 
-@mcp.command("list-tools")
+@mcp.command(
+    "list-tools",
+    epilog=(
+        "Example:\n"
+        "  $ scitex-clew mcp list-tools\n"
+        "  $ scitex-clew mcp list-tools -vv\n"
+        "  $ scitex-clew mcp list-tools --json"
+    ),
+)
 @click.option(
     "-v", "--verbose", count=True, help="Verbosity: -v sig, -vv +desc1, -vvv full."
 )
@@ -155,9 +163,25 @@ def list_tools(verbose: int, compact: bool, as_json: bool) -> None:
             click.echo()
 
 
-@mcp.command("start")
-def start_server() -> None:
+@mcp.command(
+    "start",
+    epilog=("Example:\n  $ scitex-clew mcp start\n  $ scitex-clew mcp start --dry-run"),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Validate dependencies and report what would be served; do not start the server.",
+)
+@click.option(
+    "-y",
+    "--yes",
+    "yes",
+    is_flag=True,
+    help="Confirmation flag retained for §2 audit-cli compliance.",
+)
+def start_server(dry_run: bool, yes: bool) -> None:
     """Start the scitex-clew MCP server."""
+    del yes  # accepted for §2 compliance
     try:
         from .._mcp.server import mcp as mcp_server
     except ImportError as e:
@@ -165,6 +189,15 @@ def start_server() -> None:
             f"Failed to import MCP server. "
             f"Install fastmcp: pip install scitex-clew[mcp]\n{e}"
         ) from e
+
+    if dry_run:
+        from .._mcp import get_tools_sync
+
+        tool_count = len(get_tools_sync(mcp_server))
+        click.echo(
+            f"DRY RUN — would serve scitex-clew MCP ({tool_count} tools) over stdio"
+        )
+        return
 
     click.echo("Starting scitex-clew MCP server...")
     mcp_server.run()
@@ -184,7 +217,12 @@ def installation_deprecated(ctx) -> None:
     ctx.exit(2)
 
 
-@mcp.command("install")
+@mcp.command(
+    "install",
+    epilog=(
+        "Example:\n  $ scitex-clew mcp install\n  $ scitex-clew mcp install --dry-run"
+    ),
+)
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -219,7 +257,10 @@ def install(dry_run, yes) -> None:
     click.echo("  clew mcp list-tools")
 
 
-@mcp.command("doctor")
+@mcp.command(
+    "doctor",
+    epilog=("Example:\n  $ scitex-clew mcp doctor"),
+)
 def doctor() -> None:
     """Check MCP server dependencies and configuration."""
     click.echo("Checking MCP dependencies...")
