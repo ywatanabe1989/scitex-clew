@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://scitex-clew.readthedocs.io/">Full Documentation</a> · <code>pip install scitex-clew</code>
+  <a href="https://scitex-clew.readthedocs.io/">Full Documentation</a> · <code>uv pip install scitex-clew[all]</code>
 </p>
 
 <!-- scitex-badges:start -->
