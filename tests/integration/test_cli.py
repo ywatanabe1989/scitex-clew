@@ -18,9 +18,12 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import click
 import pytest
-from click.testing import CliRunner
+
+# PA-303: click is in the [cli] extra (not [project] deps), so guard so a
+# clean install without [cli] doesn't crash collection.
+click = pytest.importorskip("click")
+CliRunner = pytest.importorskip("click.testing").CliRunner
 
 import scitex_clew._db as _db_module
 from scitex_clew._cli._main import main

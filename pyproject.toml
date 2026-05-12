@@ -46,6 +46,8 @@ dev = [
     "click>=8.0.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    # pytest-timeout — CI runs pytest with --timeout=120 (test.yml).
+    "pytest-timeout>=2.0",
     "scitex-dev>=0.11.7",
 ]
 docs = [
@@ -78,5 +80,14 @@ Documentation = "https://scitex-clew.readthedocs.io"
 packages = ["src/scitex_clew"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+# Subprocess coverage wiring (skill leaf 05_development_06_subprocess-coverage):
+# parallel=true makes every coverage process write to its own
+# .coverage.<host>.<pid>.<rand> shard; concurrency covers subprocess.run + threads.
+parallel = true
+source = ["scitex_clew"]
+concurrency = ["multiprocessing", "thread"]
+
 [tool.scitex-linter]
 library_dirs = ["src", "tests", "examples"]

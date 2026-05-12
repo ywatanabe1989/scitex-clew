@@ -12,7 +12,9 @@ import json
 from pathlib import Path
 
 import pytest
-from fastmcp import FastMCP
+
+# PA-303: fastmcp is in the [mcp] extra (not [project] deps).
+FastMCP = pytest.importorskip("fastmcp").FastMCP
 
 from scitex_clew._mcp.tools import skills as skills_mod
 from scitex_clew._mcp.tools.skills import register_tools

@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import types
 
-from click.testing import CliRunner
+import pytest
+
+# PA-303: click is in the [cli] extra (not [project] deps).
+CliRunner = pytest.importorskip("click.testing").CliRunner
 
 from scitex_clew._cli._introspect import (
     TYPE_COLORS,
