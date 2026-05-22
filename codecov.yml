@@ -25,6 +25,4 @@ ignore:
   - "tests/**"
   - "examples/**"
 
-comment:
-  layout: "diff, files"
-  require_changes: true
+comment: false
