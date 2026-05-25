@@ -5,14 +5,85 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
-from unittest.mock import MagicMock, patch
+import os
+import urllib.request
 
 import pytest
 
 import scitex_clew._db as _db_module
 from scitex_clew._db import set_db
 from scitex_clew._registry import ClewRegistry, DEFAULT_REGISTRY_URL, get_registry
+
+
+# ---------------------------------------------------------------------------
+# Helpers (mock-free)
+# ---------------------------------------------------------------------------
+
+
+@contextlib.contextmanager
+def _swap_attr(obj, name, value):
+    """Temporarily swap an attribute on an object, restoring it on exit."""
+    saved = getattr(obj, name)
+    setattr(obj, name, value)
+    try:
+        yield
+    finally:
+        setattr(obj, name, saved)
+
+
+@contextlib.contextmanager
+def _set_env(name, value):
+    """Temporarily set an environment variable, restoring its prior state."""
+    sentinel = object()
+    prior = os.environ.get(name, sentinel)
+    os.environ[name] = value
+    try:
+        yield
+    finally:
+        if prior is sentinel:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = prior
+
+
+@contextlib.contextmanager
+def _del_env(name):
+    """Temporarily delete an environment variable, restoring it on exit."""
+    sentinel = object()
+    prior = os.environ.get(name, sentinel)
+    os.environ.pop(name, None)
+    try:
+        yield
+    finally:
+        if prior is not sentinel:
+            os.environ[name] = prior
+
+
+class _FakeResponse:
+    """Minimal stand-in for an HTTP response context manager."""
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def _make_return_value_urlopen(response):
+    """Build a fake urlopen that ignores args and returns a fixed response."""
+
+    def fake_urlopen(req, timeout=None):
+        return response
+
+    return fake_urlopen
 
 
 # ---------------------------------------------------------------------------
@@ -81,30 +152,30 @@ class TestClewRegistryInit:
         # Assert
         assert not reg.base_url.endswith("/")
 
-    def test_base_url_from_env(self, monkeypatch):
+    def test_base_url_from_env(self):
         """SCITEX_REGISTRY_URL environment variable sets base_url."""
         # Arrange
-        monkeypatch.setenv("SCITEX_REGISTRY_URL", "https://env.example.com")
-        # Act
-        reg = ClewRegistry()
+        with _set_env("SCITEX_REGISTRY_URL", "https://env.example.com"):
+            # Act
+            reg = ClewRegistry()
         # Assert
         assert reg.base_url == "https://env.example.com"
 
-    def test_explicit_base_url_overrides_env(self, monkeypatch):
+    def test_explicit_base_url_overrides_env(self):
         """Explicit base_url takes precedence over env variable."""
         # Arrange
-        monkeypatch.setenv("SCITEX_REGISTRY_URL", "https://env.example.com")
-        # Act
-        reg = ClewRegistry(base_url="https://explicit.example.com")
+        with _set_env("SCITEX_REGISTRY_URL", "https://env.example.com"):
+            # Act
+            reg = ClewRegistry(base_url="https://explicit.example.com")
         # Assert
         assert reg.base_url == "https://explicit.example.com"
 
-    def test_api_key_none_by_default(self, monkeypatch):
+    def test_api_key_none_by_default(self):
         """api_key is None when not set and env var not present."""
         # Arrange
-        monkeypatch.delenv("SCITEX_API_KEY", raising=False)
-        # Act
-        reg = ClewRegistry()
+        with _del_env("SCITEX_API_KEY"):
+            # Act
+            reg = ClewRegistry()
         # Assert
         assert reg.api_key is None
 
@@ -116,21 +187,21 @@ class TestClewRegistryInit:
         # Assert
         assert reg.api_key == "my-secret-key"
 
-    def test_api_key_from_env(self, monkeypatch):
+    def test_api_key_from_env(self):
         """SCITEX_API_KEY environment variable sets api_key."""
         # Arrange
-        monkeypatch.setenv("SCITEX_API_KEY", "env-api-key-xyz")
-        # Act
-        reg = ClewRegistry()
+        with _set_env("SCITEX_API_KEY", "env-api-key-xyz"):
+            # Act
+            reg = ClewRegistry()
         # Assert
         assert reg.api_key == "env-api-key-xyz"
 
-    def test_explicit_api_key_overrides_env(self, monkeypatch):
+    def test_explicit_api_key_overrides_env(self):
         """Explicit api_key takes precedence over env variable."""
         # Arrange
-        monkeypatch.setenv("SCITEX_API_KEY", "env-api-key")
-        # Act
-        reg = ClewRegistry(api_key="explicit-key")
+        with _set_env("SCITEX_API_KEY", "env-api-key"):
+            # Act
+            reg = ClewRegistry(api_key="explicit-key")
         # Assert
         assert reg.api_key == "explicit-key"
 
@@ -180,7 +251,7 @@ class TestClewRegistryRegister:
         def fake_urlopen(req, timeout=None):
             captured_headers.update(req.headers)
             raise ConnectionError("not a real server")
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry_with_key.register("somehash")
         # Act
         # Act
@@ -201,7 +272,7 @@ class TestClewRegistryRegister:
         def fake_urlopen(req, timeout=None):
             captured_headers.update(req.headers)
             raise ConnectionError("not a real server")
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry_with_key.register("somehash")
         # Act
         # Act
@@ -228,7 +299,7 @@ class TestClewRegistryRegister:
             base_url="http://localhost:9999",
             api_key=None,
         )
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             reg.register("somehash")
 
         # Authorization header should not be present
@@ -249,7 +320,7 @@ class TestClewRegistryRegister:
             raise ConnectionError("not a real server")
         # Act
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("myhash")
         # Act
         # Assert
@@ -267,7 +338,7 @@ class TestClewRegistryRegister:
             raise ConnectionError("not a real server")
         # Act
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("myhash")
         # Act
         # Assert
@@ -286,7 +357,7 @@ class TestClewRegistryRegister:
             raise ConnectionError("not a real server")
         # Act
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("deadbeef1234")
         # Act
         # Assert
@@ -302,7 +373,7 @@ class TestClewRegistryRegister:
             captured_bodies.append(req.data)
             raise ConnectionError("not a real server")
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("deadbeef1234")
         # Act
         # Assert
@@ -317,7 +388,7 @@ class TestClewRegistryRegister:
             captured_bodies.append(req.data)
             raise ConnectionError("not a real server")
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("deadbeef1234")
         # Assert
         assert len(captured_bodies) == 1
@@ -337,7 +408,7 @@ class TestClewRegistryRegister:
             captured_bodies.append(req.data)
             raise ConnectionError("not a real server")
 
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("abc", source_type="file")
 
         # Act
@@ -354,7 +425,7 @@ class TestClewRegistryRegister:
             captured_bodies.append(req.data)
             raise ConnectionError("not a real server")
 
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("abc", session_id="sess_001")
 
         # Act
@@ -371,7 +442,7 @@ class TestClewRegistryRegister:
             captured_bodies.append(req.data)
             raise ConnectionError("not a real server")
 
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("abc", metadata={"foo": "bar"})
 
         # Act
@@ -389,7 +460,7 @@ class TestClewRegistryRegister:
             raise ConnectionError("not a real server")
 
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.register("abc")
 
         # Assert
@@ -399,15 +470,16 @@ class TestClewRegistryRegister:
         # Arrange
         # Arrange
         # Arrange
-        fake_response = MagicMock()
-        fake_response.read.return_value = json.dumps(
-            {"success": True, "registered_at": "2026-03-14T12:00:00Z"}
-        ).encode()
-        fake_response.__enter__ = lambda s: s
-        fake_response.__exit__ = MagicMock(return_value=False)
+        fake_response = _FakeResponse(
+            json.dumps(
+                {"success": True, "registered_at": "2026-03-14T12:00:00Z"}
+            ).encode()
+        )
         # Act
         # Act
-        with patch("urllib.request.urlopen", return_value=fake_response):
+        with _swap_attr(
+            urllib.request, "urlopen", _make_return_value_urlopen(fake_response)
+        ):
             result = registry.register("abc123")
         # Act
         # Assert
@@ -419,15 +491,16 @@ class TestClewRegistryRegister:
         # Arrange
         # Arrange
         # Arrange
-        fake_response = MagicMock()
-        fake_response.read.return_value = json.dumps(
-            {"success": True, "registered_at": "2026-03-14T12:00:00Z"}
-        ).encode()
-        fake_response.__enter__ = lambda s: s
-        fake_response.__exit__ = MagicMock(return_value=False)
+        fake_response = _FakeResponse(
+            json.dumps(
+                {"success": True, "registered_at": "2026-03-14T12:00:00Z"}
+            ).encode()
+        )
         # Act
         # Act
-        with patch("urllib.request.urlopen", return_value=fake_response):
+        with _swap_attr(
+            urllib.request, "urlopen", _make_return_value_urlopen(fake_response)
+        ):
             result = registry.register("abc123")
         # Act
         # Assert
@@ -477,7 +550,7 @@ class TestClewRegistryVerify:
             raise ConnectionError("not a real server")
         # Act
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.verify("deadbeef")
         # Act
         # Assert
@@ -495,7 +568,7 @@ class TestClewRegistryVerify:
             raise ConnectionError("not a real server")
         # Act
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.verify("deadbeef")
         # Act
         # Assert
@@ -514,7 +587,7 @@ class TestClewRegistryVerify:
             raise ConnectionError("not a real server")
 
         # Act
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry.verify("abc")
 
         # Assert
@@ -529,7 +602,7 @@ class TestClewRegistryVerify:
             captured_headers.update(req.headers)
             raise ConnectionError("not a real server")
 
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with _swap_attr(urllib.request, "urlopen", fake_urlopen):
             registry_with_key.verify("somehash")
 
         # Act
@@ -543,15 +616,16 @@ class TestClewRegistryVerify:
         # Arrange
         # Arrange
         # Arrange
-        fake_response = MagicMock()
-        fake_response.read.return_value = json.dumps(
-            {"registered": True, "registrations": [{"registered_at": "2026-03-14"}]}
-        ).encode()
-        fake_response.__enter__ = lambda s: s
-        fake_response.__exit__ = MagicMock(return_value=False)
+        fake_response = _FakeResponse(
+            json.dumps(
+                {"registered": True, "registrations": [{"registered_at": "2026-03-14"}]}
+            ).encode()
+        )
         # Act
         # Act
-        with patch("urllib.request.urlopen", return_value=fake_response):
+        with _swap_attr(
+            urllib.request, "urlopen", _make_return_value_urlopen(fake_response)
+        ):
             result = registry.verify("abc123")
         # Act
         # Assert
@@ -563,15 +637,16 @@ class TestClewRegistryVerify:
         # Arrange
         # Arrange
         # Arrange
-        fake_response = MagicMock()
-        fake_response.read.return_value = json.dumps(
-            {"registered": True, "registrations": [{"registered_at": "2026-03-14"}]}
-        ).encode()
-        fake_response.__enter__ = lambda s: s
-        fake_response.__exit__ = MagicMock(return_value=False)
+        fake_response = _FakeResponse(
+            json.dumps(
+                {"registered": True, "registrations": [{"registered_at": "2026-03-14"}]}
+            ).encode()
+        )
         # Act
         # Act
-        with patch("urllib.request.urlopen", return_value=fake_response):
+        with _swap_attr(
+            urllib.request, "urlopen", _make_return_value_urlopen(fake_response)
+        ):
             result = registry.verify("abc123")
         # Act
         # Assert
@@ -603,7 +678,7 @@ class TestClewRegistryRegisterSession:
             return {"success": False, "error": "no server"}
 
         # Act
-        with patch.object(registry, "register", side_effect=fake_register):
+        with _swap_attr(registry, "register", fake_register):
             results = registry.register_session("sess_empty")
 
         # No combined_hash set, no file hashes → zero registrations
@@ -623,7 +698,7 @@ class TestClewRegistryRegisterSession:
         ):
             called_with.append((hash_value, source_type))
             return {"success": True}
-        with patch.object(registry, "register", side_effect=fake_register):
+        with _swap_attr(registry, "register", fake_register):
             results = registry.register_session("sess_combo")
         # At least the combined hash should be registered
         # Act
@@ -648,7 +723,7 @@ class TestClewRegistryRegisterSession:
         ):
             called_with.append((hash_value, source_type))
             return {"success": True}
-        with patch.object(registry, "register", side_effect=fake_register):
+        with _swap_attr(registry, "register", fake_register):
             results = registry.register_session("sess_combo")
         # At least the combined hash should be registered
         # Act
@@ -673,7 +748,7 @@ class TestClewRegistryRegisterSession:
             return {"success": False}
 
         # Act
-        with patch.object(registry, "register", side_effect=fake_register):
+        with _swap_attr(registry, "register", fake_register):
             results = registry.register_session("nonexistent_session_xyz")
 
         # No run_info → nothing to register
@@ -686,10 +761,11 @@ class TestClewRegistryRegisterSession:
         db = _db_module.get_db()
         db.add_run("sess_list_check", "/script.py")
 
+        def fake_register(*args, **kwargs):
+            return {"success": False, "error": "no server"}
+
         # Act
-        with patch.object(
-            registry, "register", return_value={"success": False, "error": "no server"}
-        ):
+        with _swap_attr(registry, "register", fake_register):
             results = registry.register_session("sess_list_check")
 
         # Assert
@@ -711,7 +787,7 @@ class TestClewRegistryRegisterSession:
             return {"success": True}
 
         # Act
-        with patch.object(registry, "register", side_effect=fake_register):
+        with _swap_attr(registry, "register", fake_register):
             registry.register_session("sess_id_check")
 
         # Assert
