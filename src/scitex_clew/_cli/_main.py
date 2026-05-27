@@ -6,7 +6,11 @@ Universal output mode
 ---------------------
 Every subcommand respects the top-level ``--json`` flag (F5). The flag is
 stored on ``ctx.obj['json']`` and read by helpers in ``_claim`` / ``_hash``
-/ ``_stamp`` and inline in this module via ``_json_mode(ctx)``.
+/ ``_stamp`` / ``_verification`` and via ``_json_mode(ctx)``.
+
+This module is a thin orchestrator: command families live in their own
+modules (``_verification`` / ``_claim`` / ``_hash`` / ``_stamp`` /
+``_introspect`` / ``_mcp``) and are registered on the root group below.
 """
 
 from __future__ import annotations
@@ -27,16 +31,39 @@ except ImportError:
         raise SystemExit(1)
 
 else:
-    from ._claim import _json_mode, claim
+    from ._claim import claim
     from ._hash import hash_directory, hash_file
     from ._introspect import list_python_apis
     from ._mcp import mcp
     from ._stamp import check_stamp, list_stamps, stamp
+    from ._verification import (
+        chain,
+        dag,
+        list_runs,
+        mermaid,
+        rerun_claims,
+        rerun_dag,
+        stats,
+        status,
+        verify,
+    )
 
     CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
     COMMAND_CATEGORIES = [
-        ("Verification", ["status", "list-runs", "verify", "show-stats", "dag"]),
+        (
+            "Verification",
+            [
+                "status",
+                "list-runs",
+                "verify",
+                "show-stats",
+                "dag",
+                "chain",
+                "rerun-dag",
+                "rerun-claims",
+            ],
+        ),
         ("Claims", ["claim"]),
         ("Hashing", ["hash-file", "hash-directory"]),
         ("Stamping", ["stamp", "list-stamps", "check-stamp"]),
@@ -163,260 +190,6 @@ else:
         if ctx.invoked_subcommand is None:
             click.echo(ctx.get_help())
 
-    # -----------------------------------------------------------------------
-    # Subcommands: status, list, verify, stats, mermaid, dag
-    # -----------------------------------------------------------------------
-
-    @main.command(
-        epilog="Example:\n  $ scitex-clew status\n  $ scitex-clew status --json",
-    )
-    @click.option(
-        "--json",
-        "as_json",
-        is_flag=True,
-        help="Emit JSON (also accepted at top level).",
-    )
-    @click.pass_context
-    def status(ctx: click.Context, as_json: bool):
-        """Git-status-like overview of verification state."""
-        import scitex_clew as clew
-
-        if as_json:
-            ctx.obj = ctx.obj or {}
-            ctx.obj["json"] = True
-
-        result = clew.status()
-        # status has historically printed indented JSON; preserve that as the
-        # default human output and emit pure JSON when --json is set.
-        if _json_mode(ctx):
-            click.echo(json.dumps(result, default=str))
-        else:
-            click.echo(json.dumps(result, indent=2, default=str))
-
-    @main.command(
-        "list-runs",
-        epilog=(
-            "Example:\n"
-            "  $ scitex-clew list-runs\n"
-            "  $ scitex-clew list-runs --status success --limit 10 --json"
-        ),
-    )
-    @click.option("--limit", type=int, default=50, help="Maximum number of runs.")
-    @click.option(
-        "--status",
-        "status_filter",
-        default=None,
-        help="Filter by status (success/failed/running).",
-    )
-    @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
-    @click.pass_context
-    def list_runs(ctx: click.Context, limit: int, status_filter, as_json: bool):
-        """List tracked runs."""
-        import scitex_clew as clew
-
-        if as_json:
-            ctx.obj = ctx.obj or {}
-            ctx.obj["json"] = True
-
-        runs = clew.list_runs(limit=limit, status=status_filter)
-        if _json_mode(ctx):
-            click.echo(
-                json.dumps({"count": len(runs), "runs": runs}, indent=2, default=str)
-            )
-            return
-
-        for r in runs:
-            sid = r["session_id"]
-            run_status = r.get("status", "?")
-            script = r.get("script_path", "")
-            click.echo(f"  {run_status:<8} {sid}  {script}")
-
-    @main.command(
-        epilog=(
-            "Example:\n"
-            "  $ scitex-clew verify 2026Y-05M-09D-12h00m00s_AbCd-main\n"
-            "  $ scitex-clew verify <session_id> --json"
-        ),
-    )
-    @click.argument("session_id")
-    @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
-    @click.pass_context
-    def verify(ctx: click.Context, session_id: str, as_json: bool):
-        """Verify a specific run by session ID."""
-        import scitex_clew as clew
-
-        if as_json:
-            ctx.obj = ctx.obj or {}
-            ctx.obj["json"] = True
-
-        result = clew.run(session_id)
-
-        if _json_mode(ctx):
-            payload = {
-                "session_id": result.session_id,
-                "script_path": result.script_path,
-                "status": result.status.value,
-                "is_verified": result.is_verified,
-                "files": [
-                    {
-                        "path": f.path,
-                        "role": f.role,
-                        "status": f.status.value,
-                        "expected_hash": f.expected_hash,
-                        "current_hash": f.current_hash,
-                        "is_verified": f.is_verified,
-                    }
-                    for f in result.files
-                ],
-            }
-            click.echo(json.dumps(payload, indent=2, default=str))
-            return
-
-        icon = "OK" if result.is_verified else "FAIL"
-        click.echo(f"[{icon}] {result.session_id} ({result.status.value})")
-        for f in result.files:
-            ficon = "OK" if f.is_verified else "!!"
-            click.echo(f"  [{ficon}] {f.role:<6} {f.path}")
-
-    @main.command(
-        "show-stats",
-        epilog=(
-            "Example:\n  $ scitex-clew show-stats\n  $ scitex-clew show-stats --json"
-        ),
-    )
-    @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
-    @click.pass_context
-    def stats(ctx: click.Context, as_json: bool):
-        """Database statistics."""
-        import scitex_clew as clew
-
-        if as_json:
-            ctx.obj = ctx.obj or {}
-            ctx.obj["json"] = True
-
-        result = clew.stats()
-        if _json_mode(ctx):
-            click.echo(json.dumps(result, default=str))
-        else:
-            click.echo(json.dumps(result, indent=2, default=str))
-
-    @main.command(
-        "print-mermaid",
-        epilog=(
-            "Example:\n"
-            "  $ scitex-clew print-mermaid > dag.mmd\n"
-            "  $ scitex-clew print-mermaid --claims --json"
-        ),
-    )
-    @click.option("--claims", is_flag=True, help="Build DAG from registered claims.")
-    @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
-    @click.pass_context
-    def mermaid(ctx: click.Context, claims: bool, as_json: bool):
-        """Generate Mermaid DAG diagram."""
-        import scitex_clew as clew
-
-        if as_json:
-            ctx.obj = ctx.obj or {}
-            ctx.obj["json"] = True
-
-        code = clew.mermaid(claims=claims)
-        if _json_mode(ctx):
-            click.echo(json.dumps({"mermaid": code, "claims": claims}, default=str))
-        else:
-            click.echo(code)
-
-    @main.command()
-    @click.option(
-        "--target",
-        "targets",
-        multiple=True,
-        help="Target file(s). Repeat for multiple targets.",
-    )
-    @click.option(
-        "--claims",
-        is_flag=True,
-        help="Build DAG from all registered claims (instead of explicit targets).",
-    )
-    @click.option(
-        "--strict",
-        is_flag=True,
-        help="On hash mismatch, return failure-attribution payload (F2).",
-    )
-    @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
-    @click.pass_context
-    def dag(
-        ctx: click.Context,
-        targets,
-        claims: bool,
-        strict: bool,
-        as_json: bool,
-    ):
-        """Verify the DAG for one or more targets (or every claim).
-
-        \b
-        Examples:
-          clew dag --target results/foo.csv --json
-          clew dag --claims --strict --json
-        """
-        from scitex_clew._claim import verify_claims_dag
-        from scitex_clew._dag import verify_dag, verify_dag_strict
-
-        if as_json:
-            ctx.obj = ctx.obj or {}
-            ctx.obj["json"] = True
-
-        # F2: strict mode → failure attribution dict (always JSON-shaped).
-        if strict:
-            payload = verify_dag_strict(
-                targets=list(targets) or None,
-                claims=claims,
-            )
-            # Compact JSON when --json explicit, else indent=2 for readability.
-            indent = None if _json_mode(ctx) else 2
-            click.echo(json.dumps(payload, indent=indent, default=str))
-            return
-
-        # Non-strict: existing DAGVerification surface.
-        if claims:
-            result = verify_claims_dag()
-        else:
-            result = verify_dag(list(targets))
-
-        payload = {
-            "target_files": result.target_files,
-            "status": result.status.value,
-            "is_verified": result.is_verified,
-            "num_runs": len(result.runs),
-            "num_edges": len(result.edges),
-            "topological_order": result.topological_order,
-            "runs": [
-                {
-                    "session_id": r.session_id,
-                    "script_path": r.script_path,
-                    "status": r.status.value,
-                    "is_verified": r.is_verified,
-                }
-                for r in result.runs
-            ],
-            "edges": [{"parent": p, "child": c} for p, c in result.edges],
-        }
-
-        if _json_mode(ctx):
-            click.echo(json.dumps(payload, indent=2, default=str))
-            return
-
-        # Human summary
-        icon = "OK" if result.is_verified else "FAIL"
-        click.echo(
-            f"[{icon}] DAG status={result.status.value} "
-            f"runs={len(result.runs)} edges={len(result.edges)}"
-        )
-        for r in result.runs:
-            ficon = "OK" if r.is_verified else "!!"
-            click.echo(
-                f"  [{ficon}] {r.session_id} ({r.status.value})  {r.script_path or ''}"
-            )
-
     # §1a: install-shell-completion + print-shell-completion are registered
     # via scitex_dev._cli._completion.attach_shell_completion(...) at the
     # bottom of this module. The legacy `completion <SHELL>` positional
@@ -438,8 +211,20 @@ else:
         ctx.exit(2)
 
     # -----------------------------------------------------------------------
-    # Register integration / claim / hash / stamp commands
+    # Register command families
     # -----------------------------------------------------------------------
+
+    # Verification (status / list-runs / verify / show-stats / print-mermaid /
+    # dag / chain / rerun-dag / rerun-claims).
+    main.add_command(status)
+    main.add_command(list_runs)
+    main.add_command(verify)
+    main.add_command(stats)
+    main.add_command(mermaid)
+    main.add_command(dag)
+    main.add_command(chain)
+    main.add_command(rerun_dag)
+    main.add_command(rerun_claims)
 
     main.add_command(list_python_apis)
     main.add_command(mcp)
@@ -488,3 +273,5 @@ except Exception:
 from ._skills import skills_group as _skills_group
 
 main.add_command(_skills_group, name="skills")
+
+# EOF

@@ -103,5 +103,46 @@ def register_tools(mcp: FastMCP) -> None:
 
         return _json(verify_claim(claim_id_or_location))
 
+    @mcp.tool()
+    async def clew_register_intermediate(
+        name: str,
+        value: str,
+        supports: Optional[str] = None,
+        session_id: Optional[str] = None,
+        claim_type: str = "value",
+    ) -> str:
+        """Record a computed intermediate value (a scalar/array/result produced mid-pipeline) as a claim in the provenance DAG, with explicit upstream dependencies — so a future inspector can trace and re-verify how that number was derived. Use whenever an agent or script computes a non-trivial intermediate the user may later cite ("there were 42 significant pathways", "the median latency was 13ms") and asks to "record this value", "log this intermediate", "register this result with its inputs", or "make this number reproducible". Mirrors ``scitex_clew.register_intermediate``.
+
+        Parameters
+        ----------
+        name : str
+            Descriptive identifier (e.g. 'n_sig_pathways'). Avoid generic names
+            like 'result_3' — this id is the only handle on the value later.
+        value : str
+            The computed value (stored as its repr for the hash chain).
+        supports : str, optional
+            Comma-separated upstream claim/session ids this value depends on.
+        session_id : str, optional
+            Session this value belongs to. Defaults to $SCITEX_SESSION_ID.
+        claim_type : str, optional
+            One of: statistic, figure, table, text, value (default: value).
+        """
+        from scitex_clew import register_intermediate
+
+        supports_list = (
+            [s.strip() for s in supports.split(",") if s.strip()] if supports else None
+        )
+        try:
+            c = register_intermediate(
+                name=name,
+                value=value,
+                supports=supports_list,
+                session_id=session_id,
+                claim_type=claim_type,
+            )
+        except ValueError as exc:
+            return _json({"error": str(exc), "claim": None})
+        return _json(c.to_dict())
+
 
 # EOF
