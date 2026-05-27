@@ -144,6 +144,30 @@ clew_stats()
 
 Returns: JSON dict with database statistics.
 
+## clew_register_intermediate
+
+Record a computed intermediate value as a claim in the provenance DAG, with
+explicit upstream dependencies — so a future inspector can trace and re-verify
+how that number was derived.
+
+```
+clew_register_intermediate(name, value, supports=None, session_id=None, claim_type="value")
+```
+
+Parameters:
+- `name` (str): descriptive identifier (e.g. `"n_sig_pathways"`); avoid generic
+  names like `"result_3"` — this id is the only handle on the value later
+- `value` (str): the computed value (stored as its repr for the hash chain)
+- `supports` (str, optional): comma-separated upstream claim/session ids this
+  value depends on
+- `session_id` (str, optional): session this value belongs to; defaults to
+  `$SCITEX_SESSION_ID`
+- `claim_type` (str, optional): `statistic` / `figure` / `table` / `text` /
+  `value` (default `value`)
+
+Returns: JSON for the registered claim (`claim_id`, `claim_type`, …), or
+`{error, claim: null}` if no session id can be determined.
+
 ## Status values
 
 All `status` fields use these values:

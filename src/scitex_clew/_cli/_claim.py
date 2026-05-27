@@ -263,4 +263,121 @@ def claim_verify(ctx: click.Context, claim_id_or_location: str) -> None:
             click.echo(f"  - {d}")
 
 
+@claim.command(
+    "register-intermediate",
+    epilog=(
+        "Example:\n"
+        "  $ scitex-clew claim register-intermediate --name n_sig_pathways \\\n"
+        "        --value 42 --supports chronic_r2_min_pvals --supports reactome_v2024"
+    ),
+)
+@click.option(
+    "--name",
+    required=True,
+    help="Descriptive identifier for the intermediate (e.g. 'n_sig_pathways').",
+)
+@click.option(
+    "--value",
+    "value",
+    required=True,
+    help="The computed value (stored as its repr for hashing).",
+)
+@click.option(
+    "--supports",
+    "supports",
+    multiple=True,
+    help="Upstream claim/session id this value depends on. Repeat for multiple.",
+)
+@click.option(
+    "--session-id",
+    "session_id",
+    default=None,
+    help="Session ID this value belongs to (defaults to $SCITEX_SESSION_ID).",
+)
+@click.option(
+    "--type",
+    "claim_type",
+    default="value",
+    type=click.Choice(["statistic", "figure", "table", "text", "value"]),
+    help="Claim type (default: value).",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Validate inputs and print the claim that would be registered; do not write.",
+)
+@click.option(
+    "-y",
+    "--yes",
+    "yes",
+    is_flag=True,
+    help="Confirmation flag retained for §2 audit-cli compliance (no-op here).",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit JSON (also accepted at top level).",
+)
+@click.pass_context
+def claim_register_intermediate(
+    ctx: click.Context,
+    name: str,
+    value: str,
+    supports,
+    session_id,
+    claim_type: str,
+    dry_run: bool,
+    yes: bool,
+    as_json: bool,
+) -> None:
+    """Register a computed intermediate value as a claim in the DAG."""
+    from scitex_clew import register_intermediate
+
+    del yes  # accepted for §2 compliance
+    if as_json:
+        ctx.obj = ctx.obj or {}
+        ctx.obj["json"] = True
+
+    if dry_run:
+        preview = {
+            "name": name,
+            "value": value,
+            "supports": list(supports),
+            "session_id": session_id,
+            "claim_type": claim_type,
+        }
+        if _json_mode(ctx):
+            click.echo(_json.dumps({"dry_run": True, "claim": preview}, indent=2))
+        else:
+            click.echo("DRY RUN — would register intermediate:")
+            for k, v in preview.items():
+                click.echo(f"  {k}: {v if v not in (None, []) else '(none)'}")
+        return
+
+    try:
+        c = register_intermediate(
+            name=name,
+            value=value,
+            supports=list(supports) or None,
+            session_id=session_id,
+            claim_type=claim_type,
+        )
+    except ValueError as exc:
+        if _json_mode(ctx):
+            click.echo(_json.dumps({"error": str(exc), "claim": None}, indent=2))
+        else:
+            click.echo(f"ERROR: {exc}", err=True)
+        ctx.exit(1)
+
+    payload = c.to_dict()
+    human = (
+        f"[REGISTERED] intermediate '{name}' as claim {c.claim_id}\n"
+        f"  type:     {c.claim_type}\n"
+        f"  supports: {', '.join(supports) if supports else '(none)'}\n"
+        f"  session:  {session_id or '$SCITEX_SESSION_ID'}"
+    )
+    _emit(ctx, payload, human)
+
+
 # EOF
