@@ -396,7 +396,7 @@ __all__ = [
 # Must never break ``import scitex_clew`` — broad except is intentional.
 # ---------------------------------------------------------------------------
 try:
-    from ._io_hooks import register_with_scitex_io as _register
+    from ._observers import register_with_scitex_io as _register
 
     _register()
     del _register
