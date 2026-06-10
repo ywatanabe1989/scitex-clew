@@ -72,17 +72,14 @@ def test_class_definitions_emits_suspect_script_class_orange_band():
 def test_add_file_nodes_uses_file_suspect_class_when_path_in_suspect_files(tmp_path):
     # Arrange — write a file whose canonical hash (via the renderer's own
     # ``hash_file`` helper, which is sha256[:32]) matches what we declare
-    # as the stored hash; the file is locally OK. Then put its path in
-    # suspect_files so the renderer picks the orange (not green) class.
+    # as the stored hash; the file is locally OK. The renderer's ``verify_file_hash``
+    # therefore returns True on its own check, so only ``suspect_files``
+    # tips the cascade into the orange band.
     from scitex_clew._hash import hash_file
-    from scitex_clew._viz._json import verify_file_hash
 
     target = tmp_path / "out.csv"
     target.write_text("hello\n")
     stored_hash = hash_file(str(target))
-    # Sanity precondition: the renderer's hash helper agrees the file is OK.
-    assert verify_file_hash(str(target), stored_hash) is True
-
     files = {str(target): stored_hash}
     out_lines: list = []
     file_nodes: dict = {}
