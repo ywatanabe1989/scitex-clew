@@ -74,20 +74,44 @@ except ImportError:  # pragma: no cover — only on ancient Pythons
 
 
 # ---------------------------------------------------------------------------
-# Eager: optional decorator from scitex-dev (graceful fallback)
+# Lazy decorator from scitex-dev (audit §10 cold-start)
 #
-# Must stay eager: ``_supports_return_as`` is applied at definition time to
-# the convenience wrapper functions defined below (status, run, chain, …).
-# The import itself is cheap; the fallback is a no-op.
+# ``supports_return_as`` adds ``return_as="result"`` support. We MUST apply
+# it at function-definition time to preserve that public API behaviour, but
+# importing ``scitex_dev.decorators`` eagerly costs ~190ms (it pulls in
+# ``scitex_dev._core.types`` + dataclasses + copy). That single import was
+# pushing ``import scitex_clew`` over the audit-cli §10 500 ms threshold in
+# CI py3.12.
+#
+# Trick: wrap the decorator. At definition time we just record the function
+# unchanged (cheap). The first *call* into any wrapper resolves the real
+# decorator from scitex_dev.decorators, applies it, and patches the module
+# global so subsequent calls skip the indirection. Net cost at import: zero.
 # ---------------------------------------------------------------------------
-try:
-    from scitex_dev.decorators import supports_return_as as _supports_return_as
-except Exception:
-    # Broad catch (not just ImportError): scitex-dev may import optional ML
-    # libs whose runtime-init can fail with VersionError / RuntimeError.
-    # Fall back to a no-op decorator regardless.
-    def _supports_return_as(fn):
-        return fn
+def _supports_return_as(fn):
+    """Defer scitex_dev.decorators.supports_return_as to first call."""
+
+    _decorated = [None]
+
+    def _wrapper(*args, **kwargs):
+        if _decorated[0] is None:
+            try:
+                from scitex_dev.decorators import (
+                    supports_return_as as _real,
+                )
+                _decorated[0] = _real(fn)
+            except Exception:
+                # scitex-dev may import optional ML libs whose runtime-init
+                # can fail with VersionError / RuntimeError; fall back to
+                # the bare function, preserving normal call semantics.
+                _decorated[0] = fn
+        return _decorated[0](*args, **kwargs)
+
+    _wrapper.__wrapped__ = fn
+    _wrapper.__name__ = getattr(fn, "__name__", "_wrapper")
+    _wrapper.__doc__ = fn.__doc__
+    _wrapper.__qualname__ = getattr(fn, "__qualname__", _wrapper.__name__)
+    return _wrapper
 
 
 # ---------------------------------------------------------------------------
@@ -464,19 +488,54 @@ __all__ = [
 # ---------------------------------------------------------------------------
 # SOC R6: self-register post-save / post-load hooks with scitex-io.
 #
-# This side-effect MUST run at import time so that any later
-# ``scitex_io.save(...)`` from user code fires the clew hooks. The
-# registration helper itself is exception-safe (silent no-op if scitex-io
-# is unavailable). It is invoked via a one-shot bootstrap that only loads
-# the ``_observers`` submodule — no other clew submodule is pulled in.
+# Audit §10 cold-start: the legacy eager ``from ._observers import …``
+# pulled in _logging + _session + _tracker + _db (>125 ms). We now defer
+# registration until ``scitex_io`` is actually imported, via a tiny
+# ``sys.meta_path`` finder (constant-time string check per import).
 # ---------------------------------------------------------------------------
 def _bootstrap_io_hooks() -> None:
-    try:
-        from ._observers import register_with_scitex_io
+    import sys
 
-        register_with_scitex_io()
-    except Exception:
-        pass
+    def _register_now() -> None:
+        try:
+            from ._observers import register_with_scitex_io
+
+            register_with_scitex_io()
+        except Exception:
+            pass
+
+    if "scitex_io" in sys.modules:
+        _register_now()
+        return
+
+    class _F:
+        def find_spec(self, fullname, path, target=None):
+            if fullname != "scitex_io":
+                return None
+            try:
+                sys.meta_path.remove(self)
+            except ValueError:
+                pass
+            for finder in list(sys.meta_path):
+                spec = finder.find_spec(fullname, path, target)
+                if spec is None:
+                    continue
+                orig = spec.loader
+
+                class _L:
+                    def create_module(self, s):
+                        cm = getattr(orig, "create_module", None)
+                        return cm(s) if cm else None
+
+                    def exec_module(self, m):
+                        orig.exec_module(m)
+                        _register_now()
+
+                spec.loader = _L()
+                return spec
+            return None
+
+    sys.meta_path.insert(0, _F())
 
 
 _bootstrap_io_hooks()
