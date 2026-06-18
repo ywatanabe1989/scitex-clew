@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Timestamp: "2026-06-18 (ywatanabe)"
-# File: src/scitex_clew/_archive_lookup.py
+# File: src/scitex_clew/_chain/_archive_lookup.py
 """Transparent lookup of tracked files inside compressed session archives.
 
 Why this exists

@@ -91,7 +91,10 @@ def hash_directory(
     if not path.is_dir():
         # Maybe the dir was compressed to a session archive — hash its members
         # rather than failing. Keeps ``hash_directory`` usable post-compression.
-        from ._archive_lookup import hash_archive_members, resolve_directory_archive
+        from ._chain._archive_lookup import (
+            hash_archive_members,
+            resolve_directory_archive,
+        )
 
         archive = resolve_directory_archive(path)
         if archive is not None:

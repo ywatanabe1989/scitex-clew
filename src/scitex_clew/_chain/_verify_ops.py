@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Union
 
-from .._archive_lookup import hash_archived_file
+from ._archive_lookup import hash_archived_file
 from .._db import get_db
 from .._hash import hash_file
 from ._types import (
