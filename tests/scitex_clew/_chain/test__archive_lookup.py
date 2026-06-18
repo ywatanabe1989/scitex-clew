@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Timestamp: "2026-06-18 (ywatanabe)"
-# File: tests/scitex_clew/test__archive_lookup.py
+# File: tests/scitex_clew/_chain/test__archive_lookup.py
 """Tests for archive-aware verification (compressed-session support).
 
 These tests build real ``.tar.gz`` archives the same way
