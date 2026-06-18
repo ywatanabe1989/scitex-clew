@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from scitex_clew._archive_lookup import (
+from scitex_clew._chain._archive_lookup import (
     archived_member_exists,
     find_in_ancestor_archive,
     hash_archive_members,

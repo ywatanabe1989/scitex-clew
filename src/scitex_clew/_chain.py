@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ._archive_lookup import hash_archived_file
+from ._chain._archive_lookup import hash_archived_file
 from ._db import get_db
 from ._hash import hash_file
 
