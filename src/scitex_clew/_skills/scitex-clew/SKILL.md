@@ -59,13 +59,23 @@ scitex_clew.status(...)
 ```bash
 clew status              # Git-status-like overview
 clew list                # List tracked runs
-clew verify <SESSION_ID> # Verify a specific run
+clew verify              # Verify ALL claims; fail-loud exit code (DONE gate)
+clew verify --strict     # + require @stx.session lineage per claim
+clew verify --config F   # tune per-pattern severity (.scitex/clew/config.yaml)
+clew verify <SESSION_ID> # Verify a specific run (fail-loud)
 clew stats               # Database statistics
 clew mermaid             # Generate Mermaid DAG diagram
 clew mcp start           # Start MCP server
 clew skills list         # List skill pages
 clew skills get SKILL    # Get a specific skill page
 ```
+
+`clew verify` (no arg) is the agent DONE gate: exit `0` only when every
+registered claim is source-verified; distinct nonzero codes for the
+fabrication case (`10`), missing/changed source (`11`/`12`), missing
+lineage under `--strict` (`13`), and no claims (`20`). Per-pattern severity
+(`error`/`warning`/`ignore`) is tunable in `.scitex/clew/config.yaml`. See
+[04_cli-reference.md](04_cli-reference.md#clew-verify--fail-loud-exit-codes-the-done-gate).
 
 
 ## Environment

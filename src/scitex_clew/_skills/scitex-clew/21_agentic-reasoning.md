@@ -35,9 +35,56 @@ Call `clew_dag(target_files=<final answer path>)` and read the returned `is_veri
 
 This is the closure check. An answer with an unverified DAG is by construction unreproducible — even if the value happens to be correct, no third party (or your future self) can trace why.
 
+### Before signalling DONE — the `clew verify` gate
+
+Registering claims is not the same as verifying them. A claim can be
+`status="registered"` with `verified_at=null` and **no computation behind
+its source** — that is exactly what happens when an agent, blocked on some
+runtime error, hand-codes "estimated" numbers into a `results.json`,
+registers claims pointing at it, and declares success. Clew records the
+missing provenance, but you MUST act on it.
+
+So, immediately before you signal DONE, run:
+
+```bash
+clew verify --strict        # claim-set mode: verify EVERY registered claim
+echo $?                     # 0 == legitimate DONE; anything else == abstain
+```
+
+`DONE` is legitimate **only when `clew verify` exits `0`**. The exit code is
+a documented, machine-actionable contract:
+
+| Exit | Name             | Meaning                                                        |
+|------|------------------|----------------------------------------------------------------|
+| `0`  | `OK`             | every claim is source-verified (strict: + has `@stx.session` lineage) |
+| `10` | `UNVERIFIED`     | claim(s) registered but never verified — **the fabrication case** |
+| `11` | `SOURCE_MISSING` | a claim's source file is gone                                  |
+| `12` | `HASH_MISMATCH`  | a claim's source changed since registration                    |
+| `13` | `NO_LINEAGE`     | `--strict`: source is a hand-written leaf, no upstream computation |
+| `20` | `NO_CLAIMS`      | nothing registered — there is nothing to stand behind a DONE   |
+
+On any nonzero exit you MUST NOT claim success. Emit an honest abstention
+instead — `null` for the affected answer(s) plus a one-line reason (e.g.
+"abstained: TF version blocker, metrics could not be computed") — per the
+scitexification honest-grounding rule. Fabricating a value and labelling it
+DONE scores zero and is worse than an honest `null`.
+
+Use `--strict` whenever the task expects the answer to come from an actual
+computation: it rejects a source whose hash matches but which no
+`@stx.session` ever produced (the hand-edited `results.json`). Use the
+JSON form (`clew verify --strict --json`) to read `exit_code` / `counts` /
+`errors` / `warnings` / per-claim `outcome` programmatically.
+
+Each pattern's severity is configurable per project via `verify.severity` in
+`.scitex/clew/config.yaml` (see [20_env-vars.md](20_env-vars.md#config-files-scitexclew)):
+a pattern set to `warning` is reported under `warnings` but does **not** block
+DONE (exit stays `0`); only `error`-severity patterns fail the gate. Defaults
+keep every fabrication/integrity pattern at `error`, so you cannot accidentally
+relax the gate — you must opt out explicitly.
+
 ### Emit the final answer and stop
 
-Once the closure check passes, you MUST emit the final answer in the exact format the harness expects (typically `ANSWERS: {"q1": "...", "q5": "..."}` as a single line on stdout, or the equivalent format your task specifies) and then stop calling tools. Registering the chain is necessary but not sufficient — without an emitted final answer, the trial returns no result. Treat "I have computed and registered everything" and "I have produced the answer" as two distinct steps; do not finish at the first.
+Once the closure check passes **and `clew verify` exits 0**, you MUST emit the final answer in the exact format the harness expects (typically `ANSWERS: {"q1": "...", "q5": "..."}` as a single line on stdout, or the equivalent format your task specifies) and then stop calling tools. Registering the chain is necessary but not sufficient — without an emitted final answer, the trial returns no result. Treat "I have computed and registered everything" and "I have produced the answer" as two distinct steps; do not finish at the first.
 
 ## What you get for following this discipline
 
