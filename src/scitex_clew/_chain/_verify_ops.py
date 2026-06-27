@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Union
+from typing import Dict, Optional, Union
 
 from ._archive_lookup import hash_archived_file
 from .._db import get_db
@@ -22,6 +22,7 @@ def verify_file(
     path: Union[str, Path],
     expected_hash: str,
     role: str = "unknown",
+    hash_cache: Optional[Dict[str, str]] = None,
 ) -> FileVerification:
     """Verify a single file against expected hash.
 
@@ -39,6 +40,10 @@ def verify_file(
         Expected hash value
     role : str, optional
         Role of the file (input, output, script)
+    hash_cache : dict or None, optional
+        Per-pass cache (resolved-path -> hash) threaded from the top-level
+        verify entry point. When provided, each file is hashed at most once
+        within the pass; subsequent references reuse the cached value.
 
     Returns
     -------
@@ -49,7 +54,7 @@ def verify_file(
     path_str = str(path)
 
     if path.exists():
-        current_hash = hash_file(path)
+        current_hash = hash_file(path, hash_cache=hash_cache)
     else:
         # Loose file absent — try to read it from an ancestor session archive
         # (transparent .tar.gz support). None means truly gone.
@@ -98,6 +103,7 @@ def verify_run(
     target: str,
     propagate: bool = True,
     collapse_suspect: bool = False,
+    hash_cache: Optional[Dict[str, str]] = None,
 ) -> RunVerification:
     """Verify a session run by checking all file hashes.
 
@@ -114,6 +120,10 @@ def verify_run(
         matching the pre-SUSPECT behaviour. Default is False so callers
         opting into the 3-state DAG colouring get SUSPECT surfaced
         without further changes.
+    hash_cache : dict or None, optional
+        Per-pass cache (resolved-path -> hash) threaded from the top-level
+        verify entry point. When provided, each file is hashed at most once
+        within the pass; subsequent references reuse the cached value.
 
     Returns
     -------
@@ -155,7 +165,7 @@ def verify_run(
     upstream_failed = False
 
     for path, expected in input_hashes.items():
-        fv = verify_file(path, expected, role="input")
+        fv = verify_file(path, expected, role="input", hash_cache=hash_cache)
         file_verifications.append(fv)
 
         # Check if upstream session that produced this input has failed
@@ -163,7 +173,9 @@ def verify_run(
             upstream_failed = True
 
     for path, expected in output_hashes.items():
-        file_verifications.append(verify_file(path, expected, role="output"))
+        file_verifications.append(
+            verify_file(path, expected, role="output", hash_cache=hash_cache)
+        )
 
     # Verify script if present
     if run_info.get("script_path") and run_info.get("script_hash"):
@@ -171,6 +183,7 @@ def verify_run(
             run_info["script_path"],
             run_info["script_hash"],
             role="script",
+            hash_cache=hash_cache,
         )
         file_verifications.append(script_verification)
 

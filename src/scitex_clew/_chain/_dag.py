@@ -120,10 +120,13 @@ def verify_dag(
     # Topological sort (roots first)
     topo_order = _topological_sort(adjacency)
 
-    # Verify each session exactly once
+    # Verify each session exactly once, sharing a single hash cache across
+    # all sessions in this pass so a file referenced by multiple sessions is
+    # hashed from disk only once.
+    hash_cache: Dict[str, str] = {}
     verifications: Dict[str, RunVerification] = {}
     for sid in topo_order:
-        verifications[sid] = verify_run(sid, propagate=False)
+        verifications[sid] = verify_run(sid, propagate=False, hash_cache=hash_cache)
 
     # Propagate failures forward through the DAG
     failed_sessions: set = set()

@@ -68,10 +68,17 @@ def verify_chain(
     # Roots-first order (sources -> target), cycle-tolerant.
     chain = order_roots_first(adjacency, all_ids)
 
-    # Verify each run in the chain
+    # Verify each run in the chain, sharing a single hash cache across all
+    # sessions so a file referenced by multiple sessions is hashed only once
+    # per pass.  ``verify_run_fn`` may be a test-injected stub that ignores
+    # the kwarg, so we pass it only when the function is the real verify_run.
+    hash_cache: dict = {}
     run_verifications = []
     for sid in chain:
-        run_verifications.append(verify_run_fn(sid))
+        if verify_run_fn is verify_run:
+            run_verifications.append(verify_run_fn(sid, hash_cache=hash_cache))
+        else:
+            run_verifications.append(verify_run_fn(sid))
 
     # Determine overall status.
     # Severity preserved: VERIFIED > SUSPECT > MISSING > MISMATCH > UNKNOWN
@@ -130,9 +137,16 @@ def get_status(
     mismatched = []
     missing = []
 
+    # Share a single hash cache across all runs in this status pass so files
+    # referenced by multiple sessions are hashed from disk only once.
+    hash_cache: dict = {}
+
     for run in runs:
         session_id = run["session_id"]
-        verification = verify_run_fn(session_id)
+        if verify_run_fn is verify_run:
+            verification = verify_run_fn(session_id, hash_cache=hash_cache)
+        else:
+            verification = verify_run_fn(session_id)
 
         if verification.is_verified:
             verified.append(session_id)
