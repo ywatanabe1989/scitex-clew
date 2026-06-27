@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ._db import get_db
+from ._db._file_hashes import _stat_size
 from ._hash import combine_hashes, hash_file
 
 
@@ -33,6 +34,7 @@ class SessionTracker:
         script_path: Optional[str] = None,
         parent_session: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        db=None,
     ):
         """
         Initialize a session tracker.
@@ -47,6 +49,8 @@ class SessionTracker:
             Parent session ID for chain tracking
         metadata : dict, optional
             Additional metadata (e.g. notebook_path, cell_index)
+        db : VerificationDB, optional
+            Database instance to use.  Defaults to the global DB instance.
         """
         self.session_id = session_id
         self.script_path = script_path
@@ -60,7 +64,7 @@ class SessionTracker:
         if parent_session:
             self._parent_sessions.add(parent_session)
 
-        self._db = get_db()
+        self._db = db if db is not None else get_db()
 
         # Compute script hash if provided
         if script_path and Path(script_path).exists():
@@ -111,6 +115,7 @@ class SessionTracker:
                 file_path=path_str,
                 hash_value=file_hash,
                 role="input",
+                size_bytes=_stat_size(path_str),
             )
 
             # Auto-link parents: record ALL producer sessions
@@ -159,6 +164,7 @@ class SessionTracker:
             file_path=path_str,
             hash_value=file_hash,
             role="output",
+            size_bytes=_stat_size(path_str),
         )
 
         return file_hash

@@ -62,6 +62,9 @@ class EstimateResult:
         Fraction of completed runs that were successful (0.0–1.0).
     typical_outputs : int or None
         Median number of output files per run.
+    typical_output_bytes : int or None
+        Median total output size in bytes per run (Phase 2).  ``None`` when
+        no ``size_bytes`` data is recorded (older runs / NULL rows).
     heavy : bool
         True when p90_seconds > HEAVY_THRESHOLD_SECONDS.
     hint : str
@@ -78,6 +81,7 @@ class EstimateResult:
     p90_seconds: Optional[float]
     success_rate: Optional[float]
     typical_outputs: Optional[int]
+    typical_output_bytes: Optional[int]
     heavy: bool
     hint: str
     script_changed: bool
@@ -142,10 +146,19 @@ def _build_cold_start(script_path: Optional[str]) -> EstimateResult:
         p90_seconds=None,
         success_rate=None,
         typical_outputs=None,
+        typical_output_bytes=None,
         heavy=False,
         hint="No prior runs — cannot estimate. Run the script at least once to build history.",
         script_changed=False,
     )
+
+
+def _fmt_bytes(n: int) -> str:
+    """Format *n* bytes as a human-readable string (e.g. '~120 MB')."""
+    for unit, threshold in (("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10)):
+        if n >= threshold:
+            return f"~{n / threshold:.0f} {unit}"
+    return f"~{n} B"
 
 
 def _build_hint(
@@ -153,6 +166,8 @@ def _build_hint(
     p90: Optional[float],
     match_tier: str,
     success_rate: Optional[float],
+    typical_output_bytes: Optional[int] = None,
+    reuse_hints: Optional[List[str]] = None,
 ) -> str:
     """Compose a human-readable summary hint."""
     parts: List[str] = []
@@ -172,9 +187,15 @@ def _build_hint(
         else:
             parts.append(f"Estimated runtime: ~{p90:.0f}s p90.")
 
+    if typical_output_bytes is not None:
+        parts.append(f"Typical output volume: {_fmt_bytes(typical_output_bytes)}.")
+
     if success_rate is not None and success_rate < 1.0:
         fail_pct = (1.0 - success_rate) * 100
         parts.append(f"Historical failure rate: {fail_pct:.0f}%.")
+
+    if reuse_hints:
+        parts.extend(reuse_hints)
 
     if not parts:
         parts.append("Looks routine — no warnings.")
@@ -215,6 +236,68 @@ def _query_runs_by_path(db, script_path: str) -> List[dict]:
             (script_path,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _output_bytes_for_sessions(db, session_ids: List[str]) -> List[Optional[int]]:
+    """Return per-session total output bytes (None when all size_bytes are NULL)."""
+    results: List[Optional[int]] = []
+    for sid in session_ids:
+        with db._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT size_bytes FROM file_hashes
+                WHERE session_id = ? AND role = 'output'
+                """,
+                (sid,),
+            ).fetchall()
+        sizes = [r[0] for r in rows if r[0] is not None]
+        results.append(sum(sizes) if sizes else None)
+    return results
+
+
+def _typical_output_bytes(db, session_ids: List[str]) -> Optional[int]:
+    """Median total output bytes across sessions; None if no size data exists."""
+    per_session = _output_bytes_for_sessions(db, session_ids)
+    known = [v for v in per_session if v is not None]
+    if not known:
+        return None
+    return int(statistics.median(known))
+
+
+def _cached_intermediate_hints(db, session_ids: List[str]) -> List[str]:
+    """Return hints when recorded inputs exist as fresh outputs of prior sessions.
+
+    Limitation: this is a best-effort check based on file_path equality.
+    It does not verify whether the prior session's output is current (hash
+    match) or whether the producing script has changed since then.
+    """
+    hints: List[str] = []
+    seen: set = set()
+    for sid in session_ids:
+        with db._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT fh.file_path, r.session_id AS producer_session
+                FROM file_hashes fh
+                JOIN file_hashes fh2
+                    ON fh2.file_path = fh.file_path AND fh2.role = 'output'
+                JOIN runs r ON r.session_id = fh2.session_id
+                WHERE fh.session_id = ? AND fh.role = 'input'
+                  AND fh2.session_id != ?
+                ORDER BY r.started_at DESC
+                LIMIT 5
+                """,
+                (sid, sid),
+            ).fetchall()
+        for row in rows:
+            key = (row["file_path"], row["producer_session"])
+            if key not in seen:
+                seen.add(key)
+                hints.append(
+                    f"Input '{row['file_path']}' already produced by session "
+                    f"{row['producer_session']} — consider reusing the cached intermediate."
+                )
+    return hints
 
 
 def _count_outputs_for_sessions(db, session_ids: List[str]) -> List[int]:
@@ -265,15 +348,24 @@ def _compute_estimate(
     n = len(matched_runs)
     success_rate: float = successes / n if n > 0 else None  # type: ignore[assignment]
 
-    # Output count per session
+    # Output count and volume per session
     session_ids = [r["session_id"] for r in matched_runs]
     output_counts = _count_outputs_for_sessions(db, session_ids)
     typical_outputs: Optional[int] = (
         int(statistics.median(output_counts)) if output_counts else None
     )
+    typ_bytes = _typical_output_bytes(db, session_ids)
+    reuse_hints = _cached_intermediate_hints(db, session_ids)
 
     heavy = bool(p90 is not None and p90 > heavy_threshold)
-    hint = _build_hint(heavy, p90, match_tier, success_rate)
+    hint = _build_hint(
+        heavy,
+        p90,
+        match_tier,
+        success_rate,
+        typical_output_bytes=typ_bytes,
+        reuse_hints=reuse_hints,
+    )
 
     return EstimateResult(
         script_path=script_path,
@@ -283,6 +375,7 @@ def _compute_estimate(
         p90_seconds=round(p90, 1) if p90 is not None else None,
         success_rate=round(success_rate, 3) if success_rate is not None else None,
         typical_outputs=typical_outputs,
+        typical_output_bytes=typ_bytes,
         heavy=heavy,
         hint=hint,
         script_changed=(match_tier == "path_history"),
