@@ -584,7 +584,8 @@ class TestCLI:
         # Assert
         required_keys = {
             "match_tier", "run_count", "p50_seconds", "p90_seconds",
-            "success_rate", "typical_outputs", "heavy", "hint", "script_changed",
+            "success_rate", "typical_outputs", "typical_output_bytes",
+            "heavy", "hint", "script_changed",
         }
         assert required_keys.issubset(set(payload.keys()))
 
@@ -635,6 +636,7 @@ class TestCLI:
             p90_seconds=None,
             success_rate=None,
             typical_outputs=None,
+            typical_output_bytes=None,
             heavy=False,
             hint="No prior runs.",
             script_changed=False,

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ._chain import ChainMixin
+from ._file_hashes import FileHashMixin
 from ._queries import VerificationQueryMixin
 
 
@@ -72,7 +73,7 @@ def _default_db_path(project_root: Path) -> Path:
     return new
 
 
-class VerificationDB(VerificationQueryMixin, ChainMixin):
+class VerificationDB(VerificationQueryMixin, FileHashMixin, ChainMixin):
     """
     SQLite database for tracking session runs and file hashes.
 
@@ -137,6 +138,7 @@ class VerificationDB(VerificationQueryMixin, ChainMixin):
                     file_path TEXT NOT NULL,
                     hash TEXT NOT NULL,
                     role TEXT NOT NULL,
+                    size_bytes INTEGER,
                     recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (session_id) REFERENCES runs(session_id),
                     UNIQUE(session_id, file_path, role)
@@ -184,6 +186,8 @@ class VerificationDB(VerificationQueryMixin, ChainMixin):
 
         # Migrate existing parent_session data to junction table
         self._migrate_session_parents()
+        # Phase 2: add size_bytes column to pre-existing DBs (idempotent)
+        self._migrate_file_hashes_size_bytes()
 
     @contextmanager
     def _connect(self):
@@ -334,147 +338,8 @@ class VerificationDB(VerificationQueryMixin, ChainMixin):
             return [dict(row) for row in rows]
 
     # -------------------------------------------------------------------------
-    # File hash operations
+    # File hash operations — implemented in FileHashMixin (_file_hashes.py)
     # -------------------------------------------------------------------------
-
-    def add_file_hash(
-        self,
-        session_id: str,
-        file_path: str,
-        hash_value: str,
-        role: str,
-    ) -> None:
-        """
-        Add a file hash record.
-
-        Parameters
-        ----------
-        session_id : str
-            Session identifier
-        file_path : str
-            Path to the file
-        hash_value : str
-            Hash of the file
-        role : str
-            Role of the file (input, script, output)
-        """
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO file_hashes
-                (session_id, file_path, hash, role)
-                VALUES (?, ?, ?, ?)
-                """,
-                (session_id, file_path, hash_value, role),
-            )
-
-    def add_file_hashes(
-        self,
-        session_id: str,
-        hashes: Dict[str, str],
-        role: str,
-    ) -> None:
-        """
-        Add multiple file hashes at once.
-
-        Parameters
-        ----------
-        session_id : str
-            Session identifier
-        hashes : dict
-            Mapping of file paths to hashes
-        role : str
-            Role of the files (input, script, output)
-        """
-        with self._connect() as conn:
-            conn.executemany(
-                """
-                INSERT OR REPLACE INTO file_hashes
-                (session_id, file_path, hash, role)
-                VALUES (?, ?, ?, ?)
-                """,
-                [(session_id, path, h, role) for path, h in hashes.items()],
-            )
-
-    def get_file_hashes(
-        self,
-        session_id: str,
-        role: Optional[str] = None,
-    ) -> Dict[str, str]:
-        """
-        Get file hashes for a session.
-
-        Parameters
-        ----------
-        session_id : str
-            Session identifier
-        role : str, optional
-            Filter by role
-
-        Returns
-        -------
-        dict
-            Mapping of file paths to hashes
-        """
-        with self._connect() as conn:
-            if role:
-                rows = conn.execute(
-                    """
-                    SELECT file_path, hash FROM file_hashes
-                    WHERE session_id = ? AND role = ?
-                    """,
-                    (session_id, role),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT file_path, hash FROM file_hashes
-                    WHERE session_id = ?
-                    """,
-                    (session_id,),
-                ).fetchall()
-            return {row["file_path"]: row["hash"] for row in rows}
-
-    def find_session_by_file(
-        self,
-        file_path: str,
-        role: Optional[str] = None,
-    ) -> List[str]:
-        """
-        Find sessions that used a specific file.
-
-        Parameters
-        ----------
-        file_path : str
-            Path to the file
-        role : str, optional
-            Filter by role (input, output)
-
-        Returns
-        -------
-        list of str
-            List of session IDs
-        """
-        with self._connect() as conn:
-            if role:
-                rows = conn.execute(
-                    """
-                    SELECT DISTINCT session_id FROM file_hashes
-                    WHERE file_path = ? AND role = ?
-                    ORDER BY recorded_at DESC
-                    """,
-                    (file_path, role),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT DISTINCT session_id FROM file_hashes
-                    WHERE file_path = ?
-                    ORDER BY recorded_at DESC
-                    """,
-                    (file_path,),
-                ).fetchall()
-            return [row["session_id"] for row in rows]
 
 
 # Global instance
