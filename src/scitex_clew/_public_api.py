@@ -6,8 +6,10 @@ Extracted from __init__.py to keep that file under the 512-line limit.
 
 Contains:
 - _LAZY_ATTRS  — mapping of public name to (submodule, attr) for PEP-562
-- __all__      — canonical public export list
 - TYPE_CHECKING stubs for IDEs / mypy
+
+The canonical ``__all__`` literal lives in ``__init__.py`` (PA-101 requires
+it declared there); this module only provides the lazy-attribute registry.
 
 Internal helper — not part of the public API surface.
 """
@@ -105,50 +107,6 @@ _LAZY_ATTRS: "dict[str, tuple[str, str | None]]" = {
     "format_status": ("._visualize", "format_status"),
     "print_verification_summary": ("._visualize", "print_verification_summary"),
 }
-
-# ---------------------------------------------------------------------------
-# Public API — only these names show in dir() and tab-completion.
-# ---------------------------------------------------------------------------
-__all__ = [
-    "__version__",
-    # Verification
-    "status",
-    "run",
-    "chain",
-    "dag",
-    "rerun",
-    "rerun_dag",
-    "rerun_claims",
-    "list_runs",
-    "stats",
-    # Pre-flight estimate (Phase 1)
-    "estimate",
-    "EstimateResult",
-    # Claims
-    "add_claim",
-    "list_claims",
-    "verify_claim",
-    "verify_all_claims",
-    "export_claims_json",
-    "register_intermediate",
-    # Stamping
-    "stamp",
-    "list_stamps",
-    "check_stamp",
-    # Hashing
-    "hash_file",
-    "hash_directory",
-    # Visualization
-    "mermaid",
-    # Grouping API
-    "groupers",
-    # Examples
-    "init_examples",
-    # Session lifecycle hooks
-    "on_session_start",
-    "on_session_close",
-]
-
 
 if TYPE_CHECKING:
     # Re-state for type checkers / IDEs. These statements never execute at

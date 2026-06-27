@@ -74,10 +74,53 @@ except ImportError:  # pragma: no cover — only on ancient Pythons
 
 
 # ---------------------------------------------------------------------------
-# Public API registry (lazy map + __all__) — extracted to keep this file
-# under the 512-line limit while preserving the full public surface.
+# Public API registry (lazy map) — extracted to keep this file under the
+# 512-line limit while preserving the full public surface. ``__all__`` itself
+# is declared as a literal below (PA-101 requires it in __init__.py).
 # ---------------------------------------------------------------------------
-from ._public_api import _LAZY_ATTRS, __all__  # noqa: E402, F401
+from ._public_api import _LAZY_ATTRS  # noqa: E402, F401
+
+# Public API — only these names show in dir() and tab-completion. Result
+# dataclasses (e.g. EstimateResult) stay lazy-only via _LAZY_ATTRS, matching
+# the convention for the other verification result types.
+__all__ = [
+    "__version__",
+    # Verification
+    "status",
+    "run",
+    "chain",
+    "dag",
+    "rerun",
+    "rerun_dag",
+    "rerun_claims",
+    "list_runs",
+    "stats",
+    # Pre-flight estimate (Phase 1)
+    "estimate",
+    # Claims
+    "add_claim",
+    "list_claims",
+    "verify_claim",
+    "verify_all_claims",
+    "export_claims_json",
+    "register_intermediate",
+    # Stamping
+    "stamp",
+    "list_stamps",
+    "check_stamp",
+    # Hashing
+    "hash_file",
+    "hash_directory",
+    # Visualization
+    "mermaid",
+    # Grouping API
+    "groupers",
+    # Examples
+    "init_examples",
+    # Session lifecycle hooks
+    "on_session_start",
+    "on_session_close",
+]
 
 
 # ---------------------------------------------------------------------------

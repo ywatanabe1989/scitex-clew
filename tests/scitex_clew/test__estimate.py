@@ -105,42 +105,75 @@ class TestPercentile:
 
     def test_empty_raises_value_error(self):
         # Arrange
-        # Act / Assert
+        empty: list = []
+        # Act
+        # Assert
         with pytest.raises(ValueError):
-            _percentile([], 50)
+            _percentile(empty, 50)
 
 
 class TestBuildColdStart:
     def test_match_tier_is_unknown(self):
-        # Arrange / Act
-        result = _build_cold_start("/some/script.py")
+        # Arrange
+        script_path = "/some/script.py"
+        # Act
+        result = _build_cold_start(script_path)
         # Assert
         assert result.match_tier == "unknown"
 
     def test_run_count_is_zero(self):
-        # Arrange / Act
-        result = _build_cold_start("/some/script.py")
+        # Arrange
+        script_path = "/some/script.py"
+        # Act
+        result = _build_cold_start(script_path)
         # Assert
         assert result.run_count == 0
 
-    def test_numeric_fields_are_none(self):
-        # Arrange / Act
-        result = _build_cold_start("/some/script.py")
+    def test_p50_seconds_is_none(self):
+        # Arrange
+        script_path = "/some/script.py"
+        # Act
+        result = _build_cold_start(script_path)
         # Assert
         assert result.p50_seconds is None
+
+    def test_p90_seconds_is_none(self):
+        # Arrange
+        script_path = "/some/script.py"
+        # Act
+        result = _build_cold_start(script_path)
+        # Assert
         assert result.p90_seconds is None
+
+    def test_success_rate_is_none(self):
+        # Arrange
+        script_path = "/some/script.py"
+        # Act
+        result = _build_cold_start(script_path)
+        # Assert
         assert result.success_rate is None
+
+    def test_typical_outputs_is_none(self):
+        # Arrange
+        script_path = "/some/script.py"
+        # Act
+        result = _build_cold_start(script_path)
+        # Assert
         assert result.typical_outputs is None
 
     def test_heavy_is_false(self):
-        # Arrange / Act
-        result = _build_cold_start("/some/script.py")
+        # Arrange
+        script_path = "/some/script.py"
+        # Act
+        result = _build_cold_start(script_path)
         # Assert
         assert result.heavy is False
 
     def test_hint_mentions_no_prior_runs(self):
-        # Arrange / Act
-        result = _build_cold_start("/some/script.py")
+        # Arrange
+        script_path = "/some/script.py"
+        # Act
+        result = _build_cold_start(script_path)
         # Assert
         assert "no prior" in result.hint.lower() or "cannot" in result.hint.lower()
 
@@ -408,10 +441,12 @@ class TestHeavyFlag:
         assert "long" in result.hint.lower() or "p90" in result.hint.lower()
 
     def test_default_heavy_threshold_is_300s(self):
-        # Arrange / Act
+        # Arrange
         from scitex_clew._estimate import HEAVY_THRESHOLD_SECONDS
+        # Act
+        value = HEAVY_THRESHOLD_SECONDS
         # Assert
-        assert HEAVY_THRESHOLD_SECONDS == 300
+        assert value == 300
 
 
 # ---------------------------------------------------------------------------
@@ -511,7 +546,7 @@ class TestTargetFileResolution:
 
 
 class TestCLI:
-    def test_json_flag_produces_valid_json(self, tmp_path):
+    def test_json_flag_exit_code_is_zero(self, tmp_path):
         # Arrange
         from scitex_clew._cli._estimate import estimate as estimate_cmd
 
@@ -522,7 +557,18 @@ class TestCLI:
         result = runner.invoke(estimate_cmd, [str(script), "--json"])
         # Assert
         assert result.exit_code == 0
+
+    def test_json_flag_payload_is_dict(self, tmp_path):
+        # Arrange
+        from scitex_clew._cli._estimate import estimate as estimate_cmd
+
+        script = tmp_path / "script.py"
+        script.write_text("print('hello')\n")
+        runner = CliRunner()
+        # Act
+        result = runner.invoke(estimate_cmd, [str(script), "--json"])
         payload = json.loads(result.output)
+        # Assert
         assert isinstance(payload, dict)
 
     def test_json_output_has_required_keys(self, tmp_path):
@@ -555,7 +601,7 @@ class TestCLI:
         # Assert
         assert payload["match_tier"] == "unknown"
 
-    def test_human_output_shown_without_json_flag(self, tmp_path):
+    def test_human_output_exit_code_is_zero(self, tmp_path):
         # Arrange
         from scitex_clew._cli._estimate import estimate as estimate_cmd
 
@@ -564,13 +610,24 @@ class TestCLI:
         runner = CliRunner()
         # Act
         result = runner.invoke(estimate_cmd, [str(script)])
-        # Assert — human-readable, not JSON
+        # Assert
         assert result.exit_code == 0
+
+    def test_human_output_is_not_json(self, tmp_path):
+        # Arrange
+        from scitex_clew._cli._estimate import estimate as estimate_cmd
+
+        script = tmp_path / "script.py"
+        script.write_text("print('hello')\n")
+        runner = CliRunner()
+        # Act
+        result = runner.invoke(estimate_cmd, [str(script)])
+        # Assert
         assert "Estimate for" in result.output or "Match tier" in result.output
 
-    def test_estimate_result_to_dict_is_json_serialisable(self):
-        # Arrange
-        result = EstimateResult(
+    def _cold_result(self) -> EstimateResult:
+        """Build a representative cold-start EstimateResult for serialisation."""
+        return EstimateResult(
             script_path="/some/script.py",
             match_tier="unknown",
             run_count=0,
@@ -582,12 +639,22 @@ class TestCLI:
             hint="No prior runs.",
             script_changed=False,
         )
+
+    def test_estimate_result_to_dict_serialises_to_str(self):
+        # Arrange
+        result = self._cold_result()
         # Act
-        d = result.to_dict()
-        serialised = json.dumps(d)
+        serialised = json.dumps(result.to_dict())
         # Assert
         assert isinstance(serialised, str)
-        assert json.loads(serialised)["match_tier"] == "unknown"
+
+    def test_estimate_result_to_dict_roundtrips_match_tier(self):
+        # Arrange
+        result = self._cold_result()
+        # Act
+        roundtripped = json.loads(json.dumps(result.to_dict()))
+        # Assert
+        assert roundtripped["match_tier"] == "unknown"
 
 
 # EOF
