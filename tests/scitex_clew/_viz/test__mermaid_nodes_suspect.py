@@ -223,3 +223,202 @@ def test_add_script_node_failed_input_outranks_suspect_input():
         and ":::failed" in lines[0]
         and ":::suspect" not in lines[0]
     )
+
+
+# ----- Exception provenance marker ------------------------------------------ #
+
+
+def test_class_definitions_emits_exception_classDef_with_dashed_style():
+    # Arrange
+    lines: list = []
+
+    # Act
+    append_class_definitions(lines)
+
+    # Assert
+    exception_lines = [ln for ln in lines if "classDef exception" in ln]
+    assert len(exception_lines) == 1 and "stroke-dasharray" in exception_lines[0]
+
+
+def test_class_definitions_exception_classDef_uses_lavender_fill():
+    # Arrange
+    lines: list = []
+
+    # Act
+    append_class_definitions(lines)
+
+    # Assert
+    exception_lines = [ln for ln in lines if "classDef exception" in ln]
+    assert len(exception_lines) == 1 and "E6E6FA" in exception_lines[0]
+
+
+def test_add_script_node_exception_verified_uses_exception_class():
+    # Arrange — a verified exception node (no failure) must use the dashed
+    # 'exception' class rather than 'verified'.
+    lines: list = []
+    run = {
+        "script_path": "/scripts/gpac.py",
+        "script_hash": "ab" * 32,
+        "provenance": "exception",
+        "exception_reason": "4.1TB gPAC, recipe-known, never re-run",
+    }
+    verification = _FakeVerification(verified=True, from_scratch=False)
+
+    # Act
+    add_script_node(
+        lines,
+        idx=0,
+        sid="exception_s1",
+        run=run,
+        verification=verification,
+        path_mode="name",
+        show_hashes=False,
+        has_failed_input=False,
+        has_suspect_input=False,
+    )
+
+    # Assert
+    assert len(lines) == 1 and ":::exception" in lines[0]
+
+
+def test_add_script_node_exception_verified_label_contains_badge():
+    # Arrange
+    lines: list = []
+    run = {
+        "script_path": "/scripts/gpac.py",
+        "script_hash": "ab" * 32,
+        "provenance": "exception",
+        "exception_reason": "external job",
+    }
+    verification = _FakeVerification(verified=True, from_scratch=False)
+
+    # Act
+    add_script_node(
+        lines,
+        idx=0,
+        sid="exception_s2",
+        run=run,
+        verification=verification,
+        path_mode="name",
+        show_hashes=False,
+        has_failed_input=False,
+        has_suspect_input=False,
+    )
+
+    # Assert
+    assert len(lines) == 1 and "⊘ EXCEPTION" in lines[0]
+
+
+def test_add_script_node_exception_verified_label_contains_reason():
+    # Arrange
+    lines: list = []
+    run = {
+        "script_path": "/scripts/gpac.py",
+        "script_hash": "ab" * 32,
+        "provenance": "exception",
+        "exception_reason": "4.1TB gPAC, recipe-known, never re-run",
+    }
+    verification = _FakeVerification(verified=True, from_scratch=False)
+
+    # Act
+    add_script_node(
+        lines,
+        idx=0,
+        sid="exception_s3",
+        run=run,
+        verification=verification,
+        path_mode="name",
+        show_hashes=False,
+        has_failed_input=False,
+        has_suspect_input=False,
+    )
+
+    # Assert
+    assert len(lines) == 1 and "4.1TB gPAC, recipe-known, never re-run" in lines[0]
+
+
+def test_add_script_node_exception_failed_uses_failed_class_not_exception():
+    # Arrange — an exception node with a local failure must use 'failed', NOT
+    # 'exception', so the DAG view does not lie about the failure.
+    lines: list = []
+    run = {
+        "script_path": "/scripts/gpac.py",
+        "script_hash": "ab" * 32,
+        "provenance": "exception",
+        "exception_reason": "external job",
+    }
+    verification = _FakeVerification(verified=False, from_scratch=False)
+
+    # Act
+    add_script_node(
+        lines,
+        idx=0,
+        sid="exception_fail_s1",
+        run=run,
+        verification=verification,
+        path_mode="name",
+        show_hashes=False,
+        has_failed_input=False,
+        has_suspect_input=False,
+    )
+
+    # Assert
+    assert len(lines) == 1 and ":::failed" in lines[0] and ":::exception" not in lines[0]
+
+
+def test_add_script_node_exception_failed_still_shows_badge():
+    # Arrange — even when the exception node fails, the ⊘ EXCEPTION badge
+    # must still appear in the label (so the user knows it was hand-exception).
+    lines: list = []
+    run = {
+        "script_path": "/scripts/gpac.py",
+        "script_hash": "ab" * 32,
+        "provenance": "exception",
+        "exception_reason": "external job",
+    }
+    verification = _FakeVerification(verified=False, from_scratch=False)
+
+    # Act
+    add_script_node(
+        lines,
+        idx=0,
+        sid="exception_fail_s2",
+        run=run,
+        verification=verification,
+        path_mode="name",
+        show_hashes=False,
+        has_failed_input=False,
+        has_suspect_input=False,
+    )
+
+    # Assert
+    assert len(lines) == 1 and "⊘ EXCEPTION" in lines[0]
+
+
+def test_add_script_node_tracked_verified_uses_verified_class_not_exception():
+    # Arrange — a normal tracked verified node must NOT get the exception class;
+    # behavior-preservation guarantee.
+    lines: list = []
+    run = {
+        "script_path": "/scripts/normal.py",
+        "script_hash": "ab" * 32,
+        "provenance": "tracked",
+        "exception_reason": None,
+    }
+    verification = _FakeVerification(verified=True, from_scratch=False)
+
+    # Act
+    add_script_node(
+        lines,
+        idx=0,
+        sid="tracked_s1",
+        run=run,
+        verification=verification,
+        path_mode="name",
+        show_hashes=False,
+        has_failed_input=False,
+        has_suspect_input=False,
+    )
+
+    # Assert
+    assert len(lines) == 1 and ":::verified" in lines[0] and ":::exception" not in lines[0]
