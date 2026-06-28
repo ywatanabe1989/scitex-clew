@@ -53,6 +53,9 @@ def _echo_dag_human(result, label: str = "DAG") -> None:
         click.echo(
             f"  [{ficon}] {r.session_id} ({r.status.value})  {r.script_path or ''}"
         )
+        if getattr(r, "provenance", "tracked") == "exception":
+            reason = getattr(r, "exception_reason", None) or "no reason given"
+            click.echo(f"       ⊘ EXCEPTION (reason: {reason})")
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +200,9 @@ def chain(ctx: click.Context, target_file: str, as_json: bool):
         click.echo(
             f"  [{ficon}] {r.session_id} ({r.status.value})  {r.script_path or ''}"
         )
+        if getattr(r, "provenance", "tracked") == "exception":
+            reason = getattr(r, "exception_reason", None) or "no reason given"
+            click.echo(f"       ⊘ EXCEPTION (reason: {reason})")
 
 
 @click.command(

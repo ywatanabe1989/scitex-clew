@@ -212,6 +212,9 @@ def verify(ctx: click.Context, session_id, strict: bool, config, as_json: bool):
 
     icon = "OK" if result.is_verified else "FAIL"
     click.echo(f"[{icon}] {result.session_id} ({result.status.value})")
+    if getattr(result, "provenance", "tracked") == "exception":
+        reason = getattr(result, "exception_reason", None) or "no reason given"
+        click.echo(f"  ⊘ EXCEPTION (reason: {reason})")
     for f in result.files:
         ficon = "OK" if f.is_verified else "!!"
         click.echo(f"  [{ficon}] {f.role:<6} {f.path}")
