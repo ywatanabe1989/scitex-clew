@@ -16,12 +16,13 @@ Five claim types:
 
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import os
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -29,6 +30,22 @@ from ._db import get_db
 
 # Canonical claim types
 CLAIM_TYPES = ("statistic", "figure", "table", "text", "value")
+
+# ---------------------------------------------------------------------------
+# Canonical status-to-hex palette (source of truth for scitex-clew;
+# downstream consumers MUST read from exported claims.json).
+# Hexes are locked with the live-paper consumer (scitex-writer) — do NOT
+# change without a coordinated bump to both packages.
+# Introduced in schema v1.1; referenced by legend block added in v1.2.
+# ---------------------------------------------------------------------------
+_CLAIM_PALETTE: Dict[str, str] = {
+    "verified": "2da44e",
+    "partial": "d29922",
+    "mismatch": "cf222e",
+    "missing": "cf222e",
+    "registered": "6e7781",
+}
+_PALETTE_FALLBACK = "6e7781"  # grey — used for any unknown/future status
 
 
 @dataclass
@@ -316,11 +333,92 @@ def add_claim(
     return claim
 
 
+def _resolve_chain_flags(claim: "Claim") -> tuple:
+    """Derive ``chain_has_exception`` and ``chain_has_frozen`` for a claim.
+
+    Walks the provenance DAG reachable from the claim's ``source_session``
+    (or the newest producer of ``source_file`` when only that is available)
+    using the **existing** :func:`scitex_clew._chain._routes.resolve_file_dag`
+    walk — no custom DAG traversal here.
+
+    Rules
+    -----
+    * ``chain_has_exception``: any run reachable from the starting session has
+      ``provenance == 'exception'`` in the ``runs`` table.
+    * ``chain_has_frozen``: any ``file_hashes`` row whose ``session_id`` is in
+      the resolved session set has ``frozen == 1``.
+    * If neither ``source_session`` nor ``source_file`` is present (claim has
+      no computable provenance), both flags default to ``False`` — safe.
+    * Never re-hashes anything: DB-metadata only, cheap per claim.
+
+    Parameters
+    ----------
+    claim : Claim
+        The claim to inspect.
+
+    Returns
+    -------
+    tuple of (bool, bool)
+        ``(chain_has_exception, chain_has_frozen)``.
+    """
+    from ._chain._routes import resolve_file_dag
+
+    db = get_db()
+
+    # Determine the leaf session to start the backward DAG walk.
+    session_id = claim.source_session
+    if not session_id and claim.source_file:
+        sessions = db.find_session_by_file(
+            str(Path(claim.source_file).resolve()), role="output"
+        )
+        if sessions:
+            session_id = sessions[0]
+
+    if not session_id:
+        # No provenance link at all — safe defaults.
+        return False, False
+
+    # Walk the provenance DAG from the leaf session backward.
+    _, all_ids = resolve_file_dag([session_id], db=db)
+
+    if not all_ids:
+        return False, False
+
+    # Build the IN-clause placeholders for the set of session IDs.
+    placeholders = ", ".join("?" * len(all_ids))
+    id_list = list(all_ids)
+
+    chain_has_exception = False
+    chain_has_frozen = False
+
+    with db._connect() as conn:
+        # chain_has_exception: any run has provenance == 'exception'
+        row = conn.execute(
+            f"SELECT 1 FROM runs WHERE session_id IN ({placeholders})"
+            " AND provenance = 'exception' LIMIT 1",
+            id_list,
+        ).fetchone()
+        if row:
+            chain_has_exception = True
+
+        # chain_has_frozen: any file_hashes row has frozen == 1
+        row2 = conn.execute(
+            f"SELECT 1 FROM file_hashes WHERE session_id IN ({placeholders})"
+            " AND frozen = 1 LIMIT 1",
+            id_list,
+        ).fetchone()
+        if row2:
+            chain_has_frozen = True
+
+    return chain_has_exception, chain_has_frozen
+
+
 def export_claims_json(
     path: Optional[Union[str, Path]] = None,
     *,
     file_path_filter: Optional[str] = None,
     read_only: bool = True,
+    include_superseded: bool = False,
 ) -> Path:
     """Export every registered claim to a canonical JSON artifact.
 
@@ -347,6 +445,10 @@ def export_claims_json(
         After writing, ``chmod 0o444`` the file so accidental edits
         fail loudly at the OS layer. Default True (the file IS
         derived). Set False for tests that need to mutate the file.
+    include_superseded : bool, optional
+        When False (default), superseded claims are excluded from the
+        exported JSON — consumers should only see active claims.
+        Pass True to include them (audit/debug use).
 
     Returns
     -------
@@ -372,7 +474,55 @@ def export_claims_json(
     path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    claims = list_claims(file_path=file_path_filter, limit=10_000)
+    claims = list_claims(
+        file_path=file_path_filter,
+        limit=10_000,
+        include_superseded=include_superseded,
+    )
+
+    # Build per-claim dicts with v1.1 enrichment fields appended AFTER all
+    # existing fields so the existing field order (and thus byte-positions for
+    # streaming parsers) is unchanged.  New fields are purely additive.
+    enriched_claims = []
+    for c in claims:
+        base = c.to_dict()  # all existing fields, byte-identical
+        color = _CLAIM_PALETTE.get(c.status, _PALETTE_FALLBACK)
+        chain_has_exception, chain_has_frozen = _resolve_chain_flags(c)
+        base["color"] = color
+        base["chain_has_exception"] = chain_has_exception
+        base["chain_has_frozen"] = chain_has_frozen
+        enriched_claims.append(base)
+    # ---------------------------------------------------------------------------
+    # Schema v1.2 additions: attestation + legend blocks.
+    # ---------------------------------------------------------------------------
+    try:
+        _pkg_version = importlib.metadata.version("scitex-clew")
+    except importlib.metadata.PackageNotFoundError:
+        _pkg_version = "0.0.0"
+
+    claims_count = len(claims)
+    verified_count = sum(1 for c in claims if c.status == "verified")
+    unverified_count = claims_count - verified_count
+
+    # Human-readable labels for each status — one entry per palette key.
+    _STATUS_LABELS: Dict[str, str] = {
+        "verified": "verified — matches source",
+        "partial": "partial — upstream unconfirmed",
+        "mismatch": "mismatch — no longer matches source",
+        "missing": "missing — source not found",
+        "registered": "registered — not yet verified",
+    }
+
+    legend_statuses = [
+        {
+            "status": status_name,
+            "color": hex_color,
+            "marker": "wavy-underline",
+            "label": _STATUS_LABELS.get(status_name, status_name),
+        }
+        for status_name, hex_color in _CLAIM_PALETTE.items()
+    ]
+
     payload = {
         "_note": (
             "AUTO-GENERATED by scitex_clew.export_claims_json() from "
@@ -380,8 +530,43 @@ def export_claims_json(
             "scitex_clew.export_claims_json() (default-on after every "
             "clew.add_claim()) or by re-running your pipeline."
         ),
-        "claims_count": len(claims),
-        "claims": [c.to_dict() for c in claims],
+        "schema_version": "1.2",
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "palette": dict(_CLAIM_PALETTE),
+        "claims_count": claims_count,
+        "attestation": {
+            "text": "Provenance checked by SciTeX Clew.",
+            "tool": "scitex-clew",
+            "version": _pkg_version,
+            "url": "https://github.com/ywatanabe1989/scitex-clew",
+            "color": _CLAIM_PALETTE["verified"],
+            "verified_count": verified_count,
+            "unverified_count": unverified_count,
+        },
+        "legend": {
+            "statuses": legend_statuses,
+            "subbadges": [
+                {
+                    "key": "exception",
+                    "symbol": "⊘",
+                    "fill": "e6e6fa",
+                    "stroke": "8a2be2",
+                    "label": "human-declared exception",
+                },
+                {
+                    "key": "frozen",
+                    "symbol": "\U0001f512",
+                    "fill": "e0f0ff",
+                    "stroke": "4682b4",
+                    "label": "trusted / frozen source",
+                },
+            ],
+            "badge": {
+                "template": "{verified} verified · {unverified} unverified",
+                "all_clear": "Clew Verified — all {n} claims match source",
+            },
+        },
+        "claims": enriched_claims,
     }
 
     # Clear any pre-existing read-only bit before rewriting.
@@ -409,19 +594,31 @@ def list_claims(
     claim_type: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 100,
+    *,
+    include_superseded: bool = False,
+    file_path_prefix: Optional[str] = None,
 ) -> List[Claim]:
     """List registered claims with optional filters.
 
     Parameters
     ----------
     file_path : str, optional
-        Filter by manuscript file path.
+        Filter by manuscript file path (exact match).
     claim_type : str, optional
         Filter by claim type.
     status : str, optional
         Filter by verification status.
     limit : int
         Maximum number of claims to return.
+    include_superseded : bool, optional
+        When False (default), excludes claims with status ``"superseded"``
+        so they do not pollute the active-claim view or fail-loud gate.
+        Pass True to see the full audit trail including superseded rows.
+    file_path_prefix : str, optional
+        Prefix-match on file_path (resolved).  Only claims whose
+        ``file_path`` starts with this prefix are returned.  If both
+        ``file_path`` and ``file_path_prefix`` are given, both filters
+        apply (intersection).
 
     Returns
     -------
@@ -437,12 +634,25 @@ def list_claims(
         file_path = str(Path(file_path).resolve())
         query += " AND file_path = ?"
         params.append(file_path)
+    if file_path_prefix:
+        resolved_prefix = str(Path(file_path_prefix).resolve())
+        # Ensure the prefix ends with separator so /foo/bar doesn't match /foo/barbaz
+        if not resolved_prefix.endswith("/"):
+            resolved_prefix = resolved_prefix + "/"
+        query += " AND (file_path LIKE ? OR file_path = ?)"
+        params.append(resolved_prefix + "%")
+        params.append(resolved_prefix.rstrip("/"))
     if claim_type:
         query += " AND claim_type = ?"
         params.append(claim_type)
     if status:
         query += " AND status = ?"
         params.append(status)
+    if not include_superseded:
+        # Exclude superseded rows unless the caller explicitly filters by
+        # status="superseded" (allow explicit status filter to override).
+        if not status:
+            query += " AND status != 'superseded'"
 
     query += " ORDER BY file_path, line_number LIMIT ?"
     params.append(limit)
@@ -891,6 +1101,7 @@ def format_claims(claims: List[Claim], verbose: bool = False) -> str:
         "mismatch": "\u2717",  # ✗
         "missing": "?",
         "partial": "~",
+        "superseded": "⊘",  # ⊘
     }
 
     for c in claims:
@@ -907,6 +1118,213 @@ def format_claims(claims: List[Claim], verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
+def remove_claim(claim_id_or_location: str) -> bool:
+    """Hard-delete a claim from the database.
+
+    Permanently removes the claim row identified by ``claim_id_or_location``
+    (a claim_id string, a location like ``"paper.tex:L42"``, or a bare file
+    path — resolved via the same logic as :func:`verify_claim`).
+
+    After deletion :func:`export_claims_json` is called so the JSON
+    artifact stays in sync with the DB.
+
+    Parameters
+    ----------
+    claim_id_or_location : str
+        Claim identifier.  Resolution order:
+        1. Exact ``claim_id`` match.
+        2. Location string ``"file.tex:L42"``.
+        3. File path only (first row).
+
+    Returns
+    -------
+    bool
+        ``True`` if a row was deleted; ``False`` if nothing matched.
+    """
+    db = get_db()
+    _ensure_claims_table(db)
+
+    claim = _resolve_claim(claim_id_or_location, db)
+    if claim is None:
+        return False
+
+    conn = sqlite3.connect(str(db.db_path))
+    try:
+        conn.execute("DELETE FROM claims WHERE claim_id = ?", (claim.claim_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    if os.environ.get("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "1") != "0":
+        try:
+            export_claims_json()
+        except Exception as exc:  # noqa: BLE001
+            import warnings as _w
+
+            _w.warn(
+                f"scitex_clew auto-export of claims.json failed after "
+                f"remove_claim: {exc!r}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    return True
+
+
+def remove_claims_by_prefix(file_path_prefix: str) -> int:
+    """Hard-delete all claims whose file_path starts with ``file_path_prefix``.
+
+    Parameters
+    ----------
+    file_path_prefix : str
+        Path prefix (resolved).  All claims under this root are deleted.
+
+    Returns
+    -------
+    int
+        Number of rows deleted.
+    """
+    db = get_db()
+    _ensure_claims_table(db)
+
+    resolved_prefix = str(Path(file_path_prefix).resolve())
+    if not resolved_prefix.endswith("/"):
+        resolved_prefix = resolved_prefix + "/"
+
+    conn = sqlite3.connect(str(db.db_path))
+    try:
+        conn.execute(
+            "DELETE FROM claims WHERE file_path LIKE ? OR file_path = ?",
+            (resolved_prefix + "%", resolved_prefix.rstrip("/")),
+        )
+        conn.commit()
+        deleted = conn.execute("SELECT changes()").fetchone()[0]
+    finally:
+        conn.close()
+
+    if os.environ.get("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "1") != "0":
+        try:
+            export_claims_json()
+        except Exception as exc:  # noqa: BLE001
+            import warnings as _w
+
+            _w.warn(
+                f"scitex_clew auto-export of claims.json failed after "
+                f"remove_claims_by_prefix: {exc!r}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    return deleted
+
+
+def supersede_claim(claim_id_or_location: str) -> bool:
+    """Soft-retire a claim by setting its status to ``"superseded"``.
+
+    The row is kept in the database (audit trail) but excluded from the
+    default :func:`list_claims` view (``include_superseded=False`` is the
+    default), from :func:`verify_all_claims`, and from the default
+    :func:`export_claims_json` output.
+
+    This allows a user to retire stale/dead claims so that ``clew verify``
+    can reach exit 0 without deleting the historical record.
+
+    Parameters
+    ----------
+    claim_id_or_location : str
+        Claim identifier resolved the same way as :func:`remove_claim`.
+
+    Returns
+    -------
+    bool
+        ``True`` if the claim existed and was updated; ``False`` if nothing
+        matched.
+    """
+    db = get_db()
+    _ensure_claims_table(db)
+
+    claim = _resolve_claim(claim_id_or_location, db)
+    if claim is None:
+        return False
+
+    conn = sqlite3.connect(str(db.db_path))
+    try:
+        conn.execute(
+            "UPDATE claims SET status = 'superseded', verified_at = ? WHERE claim_id = ?",
+            (datetime.now().isoformat(), claim.claim_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    if os.environ.get("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "1") != "0":
+        try:
+            export_claims_json()
+        except Exception as exc:  # noqa: BLE001
+            import warnings as _w
+
+            _w.warn(
+                f"scitex_clew auto-export of claims.json failed after "
+                f"supersede_claim: {exc!r}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    return True
+
+
+def supersede_claims_by_prefix(file_path_prefix: str) -> int:
+    """Soft-retire all claims whose file_path starts with ``file_path_prefix``.
+
+    Parameters
+    ----------
+    file_path_prefix : str
+        Path prefix (resolved).
+
+    Returns
+    -------
+    int
+        Number of rows updated to status ``"superseded"``.
+    """
+    db = get_db()
+    _ensure_claims_table(db)
+
+    resolved_prefix = str(Path(file_path_prefix).resolve())
+    if not resolved_prefix.endswith("/"):
+        resolved_prefix = resolved_prefix + "/"
+
+    conn = sqlite3.connect(str(db.db_path))
+    try:
+        conn.execute(
+            "UPDATE claims SET status = 'superseded', verified_at = ? "
+            "WHERE file_path LIKE ? OR file_path = ?",
+            (
+                datetime.now().isoformat(),
+                resolved_prefix + "%",
+                resolved_prefix.rstrip("/"),
+            ),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT changes()").fetchone()[0]
+    finally:
+        conn.close()
+
+    if os.environ.get("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "1") != "0":
+        try:
+            export_claims_json()
+        except Exception as exc:  # noqa: BLE001
+            import warnings as _w
+
+            _w.warn(
+                f"scitex_clew auto-export of claims.json failed after "
+                f"supersede_claims_by_prefix: {exc!r}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    return updated
+
+
 __all__ = [
     "CLAIM_TYPES",
     "Claim",
@@ -916,4 +1334,8 @@ __all__ = [
     "verify_claims_dag",
     "format_claims",
     "migrate_add_claims_table",
+    "remove_claim",
+    "remove_claims_by_prefix",
+    "supersede_claim",
+    "supersede_claims_by_prefix",
 ]

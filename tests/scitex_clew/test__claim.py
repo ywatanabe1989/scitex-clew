@@ -647,3 +647,953 @@ def test_strict_chain_memo_no_lineage_claim_preserves_outcome(tmp_path, env_sand
     result = clew.verify_all_claims(strict=True)
     # Assert — chain_cache does NOT suppress the NO_LINEAGE outcome
     assert result.exit_code == codes.NO_LINEAGE
+
+
+# ---------------------------------------------------------------------------
+# Schema v1.1/v1.2 marker-fields tests
+# (PA-306 §3 no mocks — real temp DBs via package DB API;
+#  PA-307 §3 AAA + one observable assertion per test)
+#
+# Covers:
+#  (a) schema_version "1.2" (bumped from v1.1; attestation+legend added) +
+#      canonical palette in exported JSON
+#  (b) color field resolved correctly per status
+#  (c) chain_has_exception flag from run provenance
+#  (d) chain_has_frozen flag from file_hashes.frozen
+#  (e) all pre-existing claim fields still present (backward-compat guard)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def v11_sandbox(tmp_path, env_sandbox):
+    """Isolated per-test DB wired at tmp_path; auto-export OFF.
+
+    Returns the workdir Path so callers can add claims and call
+    export_claims_json() explicitly.
+    """
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    return workdir
+
+
+def test_v11_schema_version_in_exported_json(v11_sandbox, env_sandbox):
+    """Exported JSON has schema_version == '1.2' (bumped from v1.1 when attestation+legend blocks were added)."""
+    # Arrange
+    workdir = v11_sandbox
+    _seed_claim(workdir)
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    payload = json.loads(out.read_text())
+    # Assert
+    assert payload.get("schema_version") == "1.2"
+
+
+def test_v11_palette_keys_in_exported_json(v11_sandbox, env_sandbox):
+    """Exported JSON has a 'palette' dict with all canonical status keys."""
+    # Arrange
+    workdir = v11_sandbox
+    _seed_claim(workdir)
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    payload = json.loads(out.read_text())
+    # Assert
+    assert set(payload.get("palette", {}).keys()) == {
+        "verified", "partial", "mismatch", "missing", "registered"
+    }
+
+
+def test_v11_palette_verified_hex(v11_sandbox, env_sandbox):
+    """Canonical hex for 'verified' is '#2da44e'."""
+    # Arrange
+    workdir = v11_sandbox
+    _seed_claim(workdir)
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    palette = json.loads(out.read_text()).get("palette", {})
+    # Assert
+    assert palette.get("verified") == "2da44e"
+
+
+def test_v11_palette_mismatch_hex(v11_sandbox, env_sandbox):
+    """Canonical hex for 'mismatch' is '#cf222e'."""
+    # Arrange
+    workdir = v11_sandbox
+    _seed_claim(workdir)
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    palette = json.loads(out.read_text()).get("palette", {})
+    # Assert
+    assert palette.get("mismatch") == "cf222e"
+
+
+def test_v11_color_verified_claim_gets_green(tmp_path, env_sandbox):
+    """A 'verified' claim's color field resolves to '#2da44e'."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    src = _make_source(workdir)
+    paper = workdir / "paper.tex"
+    paper.write_text("claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(src),
+    )
+    # Force status to 'verified' directly in the DB
+    import sqlite3
+    db = clew.get_db()
+    conn = sqlite3.connect(str(db.db_path))
+    try:
+        conn.execute("UPDATE claims SET status = 'verified' WHERE 1=1")
+        conn.commit()
+    finally:
+        conn.close()
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["color"] == "2da44e"
+
+
+def test_v11_color_mismatch_claim_gets_red(tmp_path, env_sandbox):
+    """A 'mismatch' claim's color field resolves to '#cf222e'."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    src = _make_source(workdir)
+    paper = workdir / "paper.tex"
+    paper.write_text("claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(src),
+    )
+    import sqlite3
+    db = clew.get_db()
+    conn = sqlite3.connect(str(db.db_path))
+    try:
+        conn.execute("UPDATE claims SET status = 'mismatch' WHERE 1=1")
+        conn.commit()
+    finally:
+        conn.close()
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["color"] == "cf222e"
+
+
+def test_v11_color_unknown_status_gets_grey(tmp_path, env_sandbox):
+    """An unknown/future status falls back to grey '#6e7781'."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    src = _make_source(workdir)
+    paper = workdir / "paper.tex"
+    paper.write_text("claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(src),
+    )
+    import sqlite3
+    db = clew.get_db()
+    conn = sqlite3.connect(str(db.db_path))
+    try:
+        conn.execute("UPDATE claims SET status = 'future_unknown_status' WHERE 1=1")
+        conn.commit()
+    finally:
+        conn.close()
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["color"] == "6e7781"
+
+
+def test_v11_color_registered_claim_gets_grey(tmp_path, env_sandbox):
+    """A 'registered' claim's color field resolves to '#6e7781' (grey)."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    src = _make_source(workdir)
+    paper = workdir / "paper.tex"
+    paper.write_text("claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(src),
+    )
+    out = workdir / "claims_v11.json"
+    # Act — claim is still 'registered' (no verify pass run)
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["color"] == "6e7781"
+
+
+def test_v11_chain_has_exception_true_for_exception_run(tmp_path, env_sandbox):
+    """A claim whose source chain has provenance='exception' → chain_has_exception True."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    db = clew.get_db()
+    # Register a run with provenance='exception' + output file
+    session_id = "2026Y-01M-01D-00h00m00s_EXCEP"
+    script = str(workdir / "run.py")
+    out_file = workdir / "result.csv"
+    out_file.write_text("x=1\n")
+    db.add_run(session_id, script, provenance="exception")
+    db.finish_run(session_id, status="success")
+    db.add_file_hash(session_id, str(out_file), "abc123", role="output")
+    paper = workdir / "paper.tex"
+    paper.write_text("claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(out_file),
+        source_session=session_id,
+    )
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["chain_has_exception"] is True
+
+
+def test_v11_chain_has_exception_false_for_tracked_run(tmp_path, env_sandbox):
+    """A claim whose source chain has only provenance='tracked' → chain_has_exception False."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    db = clew.get_db()
+    session_id = "2026Y-01M-01D-00h00m00s_TRACK"
+    script = str(workdir / "run.py")
+    out_file = workdir / "result_tracked.csv"
+    out_file.write_text("x=1\n")
+    db.add_run(session_id, script, provenance="tracked")
+    db.finish_run(session_id, status="success")
+    db.add_file_hash(session_id, str(out_file), "abc456", role="output")
+    paper = workdir / "paper.tex"
+    paper.write_text("claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(out_file),
+        source_session=session_id,
+    )
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["chain_has_exception"] is False
+
+
+def test_v11_chain_has_frozen_true_for_frozen_file(tmp_path, env_sandbox):
+    """A claim whose source chain has a frozen file → chain_has_frozen True."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    db = clew.get_db()
+    session_id = "2026Y-01M-01D-00h00m00s_FROZN"
+    script = str(workdir / "run.py")
+    out_file = workdir / "frozen_result.csv"
+    out_file.write_text("x=1\n")
+    db.add_run(session_id, script, provenance="tracked")
+    db.finish_run(session_id, status="success")
+    # Add the output file WITH frozen=True
+    db.add_file_hash(session_id, str(out_file), "deadbeef", role="output", frozen=True)
+    paper = workdir / "paper.tex"
+    paper.write_text("claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(out_file),
+        source_session=session_id,
+    )
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["chain_has_frozen"] is True
+
+
+def test_v11_chain_has_frozen_false_for_non_frozen_file(tmp_path, env_sandbox):
+    """A claim whose source chain has no frozen files → chain_has_frozen False."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    db = clew.get_db()
+    session_id = "2026Y-01M-01D-00h00m00s_NFROZ"
+    script = str(workdir / "run.py")
+    out_file = workdir / "normal_result.csv"
+    out_file.write_text("x=1\n")
+    db.add_run(session_id, script, provenance="tracked")
+    db.finish_run(session_id, status="success")
+    db.add_file_hash(session_id, str(out_file), "deadbeef2", role="output", frozen=False)
+    paper = workdir / "paper.tex"
+    paper.write_text("claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(out_file),
+        source_session=session_id,
+    )
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["chain_has_frozen"] is False
+
+
+def test_v11_chain_has_exception_false_when_no_source(tmp_path, env_sandbox):
+    """A claim with no source_file/session → chain_has_exception is False."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    paper = workdir / "paper.tex"
+    paper.write_text("fabricated\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="statistic",
+        line_number=1,
+        claim_value="p=0.001",
+        # source_file and source_session omitted
+    )
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["chain_has_exception"] is False
+
+
+def test_v11_chain_has_frozen_false_when_no_source(tmp_path, env_sandbox):
+    """A claim with no source_file/session → chain_has_frozen is False."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    paper = workdir / "paper.tex"
+    paper.write_text("fabricated\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="statistic",
+        line_number=1,
+        claim_value="p=0.001",
+        # source_file and source_session omitted
+    )
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claims = json.loads(out.read_text()).get("claims", [])
+    # Assert
+    assert claims[0]["chain_has_frozen"] is False
+
+
+def test_v11_existing_fields_unchanged(tmp_path, env_sandbox):
+    """All pre-existing claim fields are present and have expected values (backward-compat guard)."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    src = _make_source(workdir, content="evidence\n")
+    paper = workdir / "paper.tex"
+    paper.write_text("the claim\n")
+    clew.add_claim(
+        file_path=str(paper),
+        claim_type="value",
+        line_number=7,
+        claim_value="0.94",
+        source_file=str(src),
+    )
+    out = workdir / "claims_v11.json"
+    # Act
+    clew.export_claims_json(path=out, read_only=False)
+    claim_dict = json.loads(out.read_text())["claims"][0]
+    # Assert — all pre-v1.1 keys must be present
+    required_old_keys = {
+        "claim_id", "file_path", "line_number", "claim_type", "claim_value",
+        "source_session", "source_file", "source_hash",
+        "registered_at", "verified_at", "status",
+    }
+    assert required_old_keys.issubset(set(claim_dict.keys()))
+
+
+# ---------------------------------------------------------------------------
+# Tests for remove_claim / supersede_claim / file_path_prefix filter
+# (PA-306 §3 no mocks — real temp DBs; PA-307 §3 AAA + one assert per test)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def claim_sandbox(tmp_path, env_sandbox):
+    """Isolated DB with one active claim pointing at a real source file."""
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    src = workdir / "results.csv"
+    src.write_text("a,b\n1,2\n")
+    clew.add_claim(
+        file_path=str(workdir / "paper.tex"),
+        claim_type="value",
+        line_number=1,
+        claim_value="0.94",
+        source_file=str(src),
+    )
+    return {"workdir": workdir, "src": src}
+
+
+# ---- remove_claim ----
+
+
+def test_remove_claim_returns_true_when_found(claim_sandbox, env_sandbox):
+    """remove_claim returns True when the claim_id exists."""
+    # Arrange
+    claims = clew.list_claims()
+    target_id = claims[0].claim_id
+    # Act
+    result = clew.remove_claim(target_id)
+    # Assert
+    assert result is True
+
+
+def test_remove_claim_deletes_row_from_list(claim_sandbox, env_sandbox):
+    """After remove_claim, the claim no longer appears in list_claims."""
+    # Arrange
+    claims = clew.list_claims()
+    target_id = claims[0].claim_id
+    # Act
+    clew.remove_claim(target_id)
+    # Assert
+    assert len(clew.list_claims()) == 0
+
+
+def test_remove_claim_returns_false_for_unknown_id(claim_sandbox, env_sandbox):
+    """remove_claim returns False when the claim_id is not found."""
+    # Arrange
+    # Act
+    result = clew.remove_claim("claim_nonexistent_000")
+    # Assert
+    assert result is False
+
+
+def test_remove_claim_verify_all_does_not_see_removed_claim(claim_sandbox, env_sandbox):
+    """After remove_claim, verify_all_claims sees NO_CLAIMS (empty DB)."""
+    # Arrange
+    from scitex_clew._cli import _exit_codes as codes
+    claims = clew.list_claims()
+    target_id = claims[0].claim_id
+    clew.remove_claim(target_id)
+    # Act
+    result = clew.verify_all_claims()
+    # Assert
+    assert result.exit_code == codes.NO_CLAIMS
+
+
+def test_remove_claim_accepts_location_string(tmp_path, env_sandbox):
+    """remove_claim resolves a location string like 'paper.tex:L42'."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    paper = workdir / "paper.tex"
+    paper.write_text("line1\n")
+    clew.add_claim(file_path=str(paper), claim_type="value", line_number=42, claim_value="x")
+    location = f"{paper}:L42"
+    # Act
+    result = clew.remove_claim(location)
+    # Assert
+    assert result is True
+
+
+# ---- supersede_claim ----
+
+
+def test_supersede_claim_returns_true_when_found(claim_sandbox, env_sandbox):
+    """supersede_claim returns True when the claim_id exists."""
+    # Arrange
+    claims = clew.list_claims()
+    target_id = claims[0].claim_id
+    # Act
+    result = clew.supersede_claim(target_id)
+    # Assert
+    assert result is True
+
+
+def test_supersede_claim_row_still_exists_with_include_superseded(claim_sandbox, env_sandbox):
+    """After supersede_claim, the row is still in DB (include_superseded=True sees it)."""
+    # Arrange
+    from scitex_clew._claim import list_claims as _list_claims
+    claims = clew.list_claims()
+    target_id = claims[0].claim_id
+    # Act
+    clew.supersede_claim(target_id)
+    # Assert
+    all_claims = _list_claims(include_superseded=True)
+    assert any(c.claim_id == target_id for c in all_claims)
+
+
+def test_supersede_claim_sets_status_to_superseded(claim_sandbox, env_sandbox):
+    """After supersede_claim, the row's status is 'superseded'."""
+    # Arrange
+    from scitex_clew._claim import list_claims as _list_claims
+    claims = clew.list_claims()
+    target_id = claims[0].claim_id
+    # Act
+    clew.supersede_claim(target_id)
+    # Assert
+    all_claims = _list_claims(include_superseded=True)
+    superseded = [c for c in all_claims if c.claim_id == target_id]
+    assert superseded[0].status == "superseded"
+
+
+def test_supersede_claim_excluded_from_default_list(claim_sandbox, env_sandbox):
+    """After supersede_claim, default list_claims does NOT return it."""
+    # Arrange
+    claims = clew.list_claims()
+    target_id = claims[0].claim_id
+    # Act
+    clew.supersede_claim(target_id)
+    # Assert
+    assert len(clew.list_claims()) == 0
+
+
+def test_supersede_claim_returns_false_for_unknown_id(claim_sandbox, env_sandbox):
+    """supersede_claim returns False when no claim matches."""
+    # Arrange
+    # Act
+    result = clew.supersede_claim("claim_nonexistent_000")
+    # Assert
+    assert result is False
+
+
+# ---- verify_all_claims excludes superseded ----
+
+
+def test_verify_all_claims_skips_superseded_claim(claim_sandbox, env_sandbox):
+    """verify_all_claims treats superseded claims as invisible (hits NO_CLAIMS)."""
+    # Arrange
+    from scitex_clew._cli import _exit_codes as codes
+    claims = clew.list_claims()
+    target_id = claims[0].claim_id
+    clew.supersede_claim(target_id)
+    # Act
+    result = clew.verify_all_claims()
+    # Assert
+    assert result.exit_code == codes.NO_CLAIMS
+
+
+def test_verify_all_claims_supersede_only_failing_claim_makes_gate_pass(tmp_path, env_sandbox):
+    """Superseding the only MISMATCH claim lets verify_all_claims exit 0 or NO_CLAIMS."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    src = workdir / "data.txt"
+    src.write_text("original\n")
+    paper = workdir / "paper.tex"
+    paper.write_text("c1\n")
+    clew.add_claim(file_path=str(paper), claim_type="value", line_number=1, claim_value="v", source_file=str(src))
+    # Mutate to force HASH_MISMATCH
+    src.write_text("tampered\n")
+    result_before = clew.verify_all_claims()
+    claims = clew.list_claims(include_superseded=True)
+    clew.supersede_claim(claims[0].claim_id)
+    # Act
+    result_after = clew.verify_all_claims()
+    # Assert — gate must not be failing after supersede (NO_CLAIMS or OK)
+    assert result_after.exit_code != result_before.exit_code
+
+
+def test_verify_all_claims_all_superseded_hits_no_claims_not_crash(tmp_path, env_sandbox):
+    """When all claims are superseded, verify_all_claims returns NO_CLAIMS (not a crash)."""
+    # Arrange
+    from scitex_clew._cli import _exit_codes as codes
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    paper = workdir / "paper.tex"
+    paper.write_text("c1\n")
+    clew.add_claim(file_path=str(paper), claim_type="value", line_number=1, claim_value="v")
+    clew.supersede_claim(clew.list_claims(include_superseded=True)[0].claim_id)
+    # Act
+    result = clew.verify_all_claims()
+    # Assert
+    assert result.exit_code == codes.NO_CLAIMS
+
+
+# ---- claims.json excludes superseded by default ----
+
+
+def test_export_claims_json_excludes_superseded_by_default(tmp_path, env_sandbox):
+    """Default export_claims_json does NOT include superseded claims."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    paper = workdir / "paper.tex"
+    paper.write_text("c1\n")
+    clew.add_claim(file_path=str(paper), claim_type="value", line_number=1, claim_value="v")
+    claims_before = clew.list_claims(include_superseded=True)
+    clew.supersede_claim(claims_before[0].claim_id)
+    import json
+    # Act
+    out = clew.export_claims_json(read_only=False)
+    payload = json.loads(out.read_text())
+    # Assert
+    assert payload["claims_count"] == 0
+
+
+# ---- file_path_prefix filter ----
+
+
+def test_list_claims_file_path_prefix_returns_matching_claims(tmp_path, env_sandbox):
+    """list_claims(file_path_prefix=...) returns only claims under that prefix."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    # Two papers in different dirs
+    dir_a = workdir / "proj_a"
+    dir_b = workdir / "proj_b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    clew.add_claim(file_path=str(dir_a / "paper.tex"), claim_type="value", line_number=1, claim_value="a")
+    clew.add_claim(file_path=str(dir_b / "paper.tex"), claim_type="value", line_number=1, claim_value="b")
+    # Act
+    from scitex_clew._claim import list_claims as _list_claims
+    results = _list_claims(file_path_prefix=str(dir_a))
+    # Assert
+    assert all(c.file_path.startswith(str(dir_a.resolve())) for c in results)
+
+
+def test_list_claims_file_path_prefix_excludes_non_matching(tmp_path, env_sandbox):
+    """list_claims(file_path_prefix=...) does NOT return claims outside the prefix."""
+    # Arrange
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    dir_a = workdir / "proj_a"
+    dir_b = workdir / "proj_b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    clew.add_claim(file_path=str(dir_a / "paper.tex"), claim_type="value", line_number=1, claim_value="a")
+    clew.add_claim(file_path=str(dir_b / "paper.tex"), claim_type="value", line_number=1, claim_value="b")
+    # Act
+    from scitex_clew._claim import list_claims as _list_claims
+    results = _list_claims(file_path_prefix=str(dir_a))
+    # Assert — proj_b claim must NOT appear
+    assert not any(str(dir_b.resolve()) in c.file_path for c in results)
+
+
+# ---- bulk remove / supersede by prefix ----
+
+
+def test_remove_claims_by_prefix_returns_count(tmp_path, env_sandbox):
+    """remove_claims_by_prefix returns the count of deleted rows."""
+    # Arrange
+    from scitex_clew._claim import remove_claims_by_prefix
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    dir_a = workdir / "proj_a"
+    dir_a.mkdir()
+    clew.add_claim(file_path=str(dir_a / "paper.tex"), claim_type="value", line_number=1, claim_value="a")
+    clew.add_claim(file_path=str(dir_a / "paper.tex"), claim_type="value", line_number=2, claim_value="b")
+    # Act
+    deleted = remove_claims_by_prefix(str(dir_a))
+    # Assert
+    assert deleted == 2
+
+
+def test_remove_claims_by_prefix_purges_all_matching(tmp_path, env_sandbox):
+    """After remove_claims_by_prefix, no claims under that prefix remain."""
+    # Arrange
+    from scitex_clew._claim import remove_claims_by_prefix
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    dir_a = workdir / "proj_a"
+    dir_a.mkdir()
+    clew.add_claim(file_path=str(dir_a / "paper.tex"), claim_type="value", line_number=1, claim_value="a")
+    remove_claims_by_prefix(str(dir_a))
+    # Act
+    from scitex_clew._claim import list_claims as _list_claims
+    remaining = _list_claims(file_path_prefix=str(dir_a))
+    # Assert
+    assert len(remaining) == 0
+
+
+def test_supersede_claims_by_prefix_returns_count(tmp_path, env_sandbox):
+    """supersede_claims_by_prefix returns the count of updated rows."""
+    # Arrange
+    from scitex_clew._claim import supersede_claims_by_prefix
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    dir_a = workdir / "proj_a"
+    dir_a.mkdir()
+    clew.add_claim(file_path=str(dir_a / "paper.tex"), claim_type="value", line_number=1, claim_value="a")
+    clew.add_claim(file_path=str(dir_a / "paper.tex"), claim_type="value", line_number=2, claim_value="b")
+    # Act
+    updated = supersede_claims_by_prefix(str(dir_a))
+    # Assert
+    assert updated == 2
+
+
+def test_supersede_claims_by_prefix_hides_from_default_list(tmp_path, env_sandbox):
+    """After supersede_claims_by_prefix, default list_claims returns none of them."""
+    # Arrange
+    from scitex_clew._claim import supersede_claims_by_prefix
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    dir_a = workdir / "proj_a"
+    dir_a.mkdir()
+    clew.add_claim(file_path=str(dir_a / "paper.tex"), claim_type="value", line_number=1, claim_value="a")
+    supersede_claims_by_prefix(str(dir_a))
+    # Act
+    remaining = clew.list_claims()
+    # Assert
+    assert len(remaining) == 0
+
+
+# ---------------------------------------------------------------------------
+# Schema v1.2 tests: attestation + legend blocks
+# (PA-307 §3: AAA comment markers + ONE observable assertion per test)
+# ---------------------------------------------------------------------------
+
+
+def _export_v12(tmp_path, env_sandbox, *, num_verified: int = 1, num_registered: int = 0) -> dict:
+    """Helper: build a fresh DB, seed claims, export, return parsed payload."""
+    workdir = _fresh_db(tmp_path, env_sandbox)
+    env_sandbox.chdir(workdir)
+    _make_project_root(workdir)
+    env_sandbox.set_env("SCITEX_CLEW_AUTO_EXPORT_CLAIMS", "0")
+    src = _make_source(workdir)
+    for i in range(num_verified):
+        clew.add_claim(
+            file_path=str(workdir / "paper.tex"),
+            claim_type="value",
+            line_number=i + 1,
+            claim_value=f"v{i}",
+            source_file=str(src),
+        )
+    for j in range(num_registered):
+        clew.add_claim(
+            file_path=str(workdir / "paper.tex"),
+            claim_type="text",
+            line_number=100 + j,
+            claim_value=f"reg{j}",
+        )
+    out = clew.export_claims_json(path=workdir / "claims.json", read_only=False)
+    return json.loads(out.read_text())
+
+
+def test_v12_schema_version_is_1_2(tmp_path, env_sandbox):
+    """schema_version field is exactly '1.2' after the bump."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    version = payload["schema_version"]
+    # Assert
+    assert version == "1.2"
+
+
+def test_v12_attestation_text_present(tmp_path, env_sandbox):
+    """attestation.text is the canonical provenance string."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    text = payload["attestation"]["text"]
+    # Assert
+    assert text == "Provenance checked by SciTeX Clew."
+
+
+def test_v12_attestation_url_present(tmp_path, env_sandbox):
+    """attestation.url points to the scitex-clew GitHub repo."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    url = payload["attestation"]["url"]
+    # Assert
+    assert url == "https://github.com/ywatanabe1989/scitex-clew"
+
+
+def test_v12_attestation_tool_present(tmp_path, env_sandbox):
+    """attestation.tool is 'scitex-clew'."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    tool = payload["attestation"]["tool"]
+    # Assert
+    assert tool == "scitex-clew"
+
+
+def test_v12_attestation_version_is_nonempty_str(tmp_path, env_sandbox):
+    """attestation.version is a non-empty string (dynamic, not hardcoded)."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    ver = payload["attestation"]["version"]
+    # Assert
+    assert isinstance(ver, str) and len(ver) > 0
+
+
+def test_v12_attestation_verified_count_counts_only_verified_status(tmp_path, env_sandbox):
+    """attestation.verified_count equals the number of claims with status=='verified'."""
+    # Arrange — seed 1 claim (registered, not verified) so verified_count should be 0
+    payload = _export_v12(tmp_path, env_sandbox, num_verified=0, num_registered=2)
+    # Act
+    verified_count = payload["attestation"]["verified_count"]
+    actual_verified = sum(1 for c in payload["claims"] if c["status"] == "verified")
+    # Assert
+    assert verified_count == actual_verified
+
+
+def test_v12_attestation_counts_sum_to_claims_count(tmp_path, env_sandbox):
+    """attestation.verified_count + unverified_count == claims_count."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox, num_verified=2, num_registered=1)
+    # Act
+    total = payload["attestation"]["verified_count"] + payload["attestation"]["unverified_count"]
+    # Assert
+    assert total == payload["claims_count"]
+
+
+def test_v12_legend_statuses_has_one_entry_per_palette_status(tmp_path, env_sandbox):
+    """legend.statuses has exactly one entry per _CLAIM_PALETTE key."""
+    # Arrange
+    from scitex_clew._claim import _CLAIM_PALETTE
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    status_names = {entry["status"] for entry in payload["legend"]["statuses"]}
+    # Assert
+    assert status_names == set(_CLAIM_PALETTE.keys())
+
+
+def test_v12_legend_statuses_colors_are_bare_hex(tmp_path, env_sandbox):
+    """legend.statuses colors are 6-char hex strings without a leading '#'."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    colors = [entry["color"] for entry in payload["legend"]["statuses"]]
+    # Assert — every color is a 6-char hex string with no '#' prefix
+    assert all(
+        isinstance(c, str) and len(c) == 6 and not c.startswith("#")
+        for c in colors
+    )
+
+
+def test_v12_legend_subbadges_has_exception_entry(tmp_path, env_sandbox):
+    """legend.subbadges contains an entry with key='exception' and symbol='⊘'."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    exception_badges = [b for b in payload["legend"]["subbadges"] if b["key"] == "exception"]
+    # Assert
+    assert len(exception_badges) == 1 and exception_badges[0]["symbol"] == "⊘"
+
+
+def test_v12_legend_subbadges_has_frozen_entry(tmp_path, env_sandbox):
+    """legend.subbadges contains an entry with key='frozen' and symbol='🔒'."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    frozen_badges = [b for b in payload["legend"]["subbadges"] if b["key"] == "frozen"]
+    # Assert
+    assert len(frozen_badges) == 1 and frozen_badges[0]["symbol"] == "🔒"
+
+
+def test_v12_backward_compat_palette_still_present(tmp_path, env_sandbox):
+    """v1.1 'palette' top-level key is still present (backward-compat)."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    palette = payload.get("palette")
+    # Assert
+    assert isinstance(palette, dict) and len(palette) > 0
+
+
+def test_v12_backward_compat_claims_count_present(tmp_path, env_sandbox):
+    """v1.1 'claims_count' top-level key is still present."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox)
+    # Act
+    claims_count = payload.get("claims_count")
+    # Assert
+    assert isinstance(claims_count, int)
+
+
+def test_v12_backward_compat_per_claim_color_present(tmp_path, env_sandbox):
+    """Every claim entry still carries the v1.1 'color' field."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox, num_registered=1)
+    # Act
+    missing_color = [c for c in payload["claims"] if "color" not in c]
+    # Assert
+    assert missing_color == []
+
+
+def test_v12_backward_compat_per_claim_chain_flags_present(tmp_path, env_sandbox):
+    """Every claim entry still carries v1.1 chain_has_exception + chain_has_frozen."""
+    # Arrange
+    payload = _export_v12(tmp_path, env_sandbox, num_registered=1)
+    # Act
+    missing_flags = [
+        c for c in payload["claims"]
+        if "chain_has_exception" not in c or "chain_has_frozen" not in c
+    ]
+    # Assert
+    assert missing_flags == []
