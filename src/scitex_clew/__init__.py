@@ -256,12 +256,13 @@ def __dir__() -> "list[str]":
 # Public convenience API
 #
 # The eager convenience wrappers (cheap function objects with function-local
-# lazy imports) live in ``_convenience.py`` to keep this file under the
-# 512-line limit. Importing that module adds no measurable cold-start cost —
-# it only defines functions. Re-binding them here preserves the public API and
-# PA-102 static binding.
+# lazy imports) live in ``_core/_convenience.py`` (a subpackage, not a flat
+# root module, per PS-108b) to keep this file under the 512-line limit.
+# Importing that module adds no measurable cold-start cost — it only defines
+# functions. Re-binding them here preserves the public API and PA-102 static
+# binding.
 # ---------------------------------------------------------------------------
-from ._convenience import (  # noqa: E402
+from ._core._convenience import (  # noqa: E402
     chain,
     dag,
     estimate,

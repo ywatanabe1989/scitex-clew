@@ -261,6 +261,11 @@ class TestRegisterAllTools:
             "clew_register_intermediate",
             "clew_remove_claim",
             "clew_supersede_claim",
+            # citation gate wrappers
+            "clew_add_citation",
+            "clew_list_citations",
+            "clew_verify_citations",
+            "clew_verify_all_citations",
             "clew_hash_file",
             "clew_hash_directory",
             "clew_stamp",

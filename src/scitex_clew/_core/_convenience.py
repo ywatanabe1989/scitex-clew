@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 """Eager public convenience wrappers for scitex_clew.
 
-Extracted from ``__init__.py`` to keep that file under the 512-line limit.
+Extracted from ``__init__.py`` to keep that file under the 512-line limit, and
+housed under ``_core/`` (not a flat root module) per PS-108b so the package
+root stays under the flat-file threshold.
 
 These wrappers are defined eagerly (cheap — they're just function objects plus
 the :func:`_supports_return_as` decorator). Each body does a function-local
-``from .<submodule> import …`` so the heavy submodule is only imported on first
+``from ..<submodule> import …`` so the heavy submodule is only imported on first
 invocation. Python caches the resulting module in ``sys.modules``, so the
 local-import overhead on subsequent calls is a dict lookup. Importing this
 module itself therefore adds no measurable cold-start cost (audit §10).
@@ -59,7 +61,7 @@ def _supports_return_as(fn):
 @_supports_return_as
 def list_runs(limit: int = 100, status: str = None):
     """List tracked runs."""
-    from ._db import get_db
+    from .._db import get_db
 
     db = get_db()
     return db.list_runs(status=status, limit=limit)
@@ -68,7 +70,7 @@ def list_runs(limit: int = 100, status: str = None):
 @_supports_return_as
 def status():
     """Get verification status summary (like git status)."""
-    from ._chain import get_status
+    from .._chain import get_status
 
     return get_status()
 
@@ -86,10 +88,10 @@ def run(session_id: str, from_scratch: bool = False):
         If False, only compare hashes (fast).
     """
     if from_scratch:
-        from ._rerun import verify_by_rerun
+        from .._rerun import verify_by_rerun
 
         return verify_by_rerun(session_id)
-    from ._chain import verify_run
+    from .._chain import verify_run
 
     return verify_run(session_id)
 
@@ -97,7 +99,7 @@ def run(session_id: str, from_scratch: bool = False):
 @_supports_return_as
 def chain(target: str):
     """Verify the dependency chain for a target file."""
-    from ._chain import verify_chain
+    from .._chain import verify_chain
 
     return verify_chain(target)
 
@@ -105,7 +107,7 @@ def chain(target: str):
 @_supports_return_as
 def stats():
     """Get database statistics."""
-    from ._db import get_db
+    from .._db import get_db
 
     db = get_db()
     return db.stats()
@@ -127,14 +129,14 @@ def dag(targets=None, claims=False, strict=False):
         ``still_valid_claims`` instead of a ``DAGVerification``.
     """
     if strict:
-        from ._dag import verify_dag_strict
+        from .._dag import verify_dag_strict
 
         return verify_dag_strict(targets=targets, claims=claims)
     if claims:
-        from ._claim import verify_claims_dag
+        from .._claim import verify_claims_dag
 
         return verify_claims_dag()
-    from ._dag import verify_dag
+    from .._dag import verify_dag
 
     return verify_dag(targets or [])
 
@@ -152,7 +154,7 @@ def rerun(target, timeout: int = 300, cleanup: bool = True):
     cleanup : bool, optional
         Remove sandbox outputs after verification (default: True).
     """
-    from ._rerun import verify_by_rerun
+    from .._rerun import verify_by_rerun
 
     return verify_by_rerun(target, timeout=timeout, cleanup=cleanup)
 
@@ -184,10 +186,10 @@ def mermaid(
         ``.scitex/clew/config.yaml`` (key ``grouper``) if present.
     """
     if grouper is None:
-        from ._groupers._config import load_project_config
+        from .._groupers._config import load_project_config
 
         grouper = load_project_config().get("grouper")
-    from ._visualize import generate_mermaid_dag
+    from .._visualize import generate_mermaid_dag
 
     return generate_mermaid_dag(
         session_id=session_id,
@@ -218,7 +220,7 @@ def estimate(script_or_target: str, *, heavy_threshold: int = None):
         Estimation result with match_tier, p50/p90 runtime, success rate,
         typical #outputs, heavy flag, and hint text.
     """
-    from ._estimate import HEAVY_THRESHOLD_SECONDS, estimate as _estimate
+    from .._estimate import HEAVY_THRESHOLD_SECONDS, estimate as _estimate
 
     kwargs = {}
     if heavy_threshold is not None:
