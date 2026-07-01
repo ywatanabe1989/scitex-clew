@@ -33,6 +33,7 @@ def add_citation(
     doi: Optional[str] = None,
     source_id: Optional[str] = None,
     metadata: Optional[Dict] = None,
+    url: Optional[str] = None,
     is_stub: bool = False,
     resolved: bool = True,
 ) -> Citation:
@@ -57,6 +58,10 @@ def add_citation(
         Scholar's internal source identifier for the resolved record.
     metadata : dict, optional
         Bib fields (author/year/title/journal/doi) used for the content hash.
+    url : str, optional
+        Explicit source URL. Takes precedence over the derived
+        ``https://doi.org/<doi>`` link — supply it for no-DOI records
+        (e.g. SemanticScholar CorpusId-only) so the renderer has an href.
     is_stub : bool, optional
         True if scholar flagged this as a stub / placeholder. Default False.
     resolved : bool, optional
@@ -86,6 +91,7 @@ def add_citation(
         is_stub=is_stub,
         status=status,
         metadata_hash=meta_hash,
+        url=url,
         verified_at=verified_at,
     )
 
@@ -98,8 +104,8 @@ def add_citation(
             INSERT OR REPLACE INTO citations
                 (cite_key, manuscript_file, line_number, doi, source_id,
                  resolved, is_stub, status, metadata_json, metadata_hash,
-                 verified_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 url, verified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 citation.cite_key,
@@ -112,6 +118,7 @@ def add_citation(
                 citation.status,
                 json.dumps(metadata, default=str) if metadata else None,
                 citation.metadata_hash,
+                citation.url,
                 citation.verified_at,
             ),
         )
@@ -167,9 +174,12 @@ def verify_citations(entries) -> Dict[str, Dict]:
     Returns
     -------
     dict[str, dict]
-        ``{cite_key: {"status", "doi", "source_id", "reason"}}`` where
-        ``status`` is one of ``{verified, stub, unverified, unknown}``. The
-        compiler treats anything other than ``"verified"`` as a gate hit.
+        ``{cite_key: {"status", "doi", "source_id", "link", "reason"}}`` where
+        ``status`` is one of ``{verified, stub, unverified, unknown}`` and
+        ``link`` is the resolved source URL for an href (scholar-supplied url,
+        else ``https://doi.org/<doi>``, else None). The compiler treats
+        anything other than ``"verified"`` as a gate hit and renders the
+        marker from ``status`` (style) + ``link`` (href) + ``reason`` (tooltip).
     """
     coerced = coerce_entries(entries)
     db = get_db()
@@ -184,6 +194,7 @@ def verify_citations(entries) -> Dict[str, Dict]:
             "status": verdict.status,
             "doi": verdict.doi,
             "source_id": verdict.source_id,
+            "link": verdict.link,
             "reason": verdict.reason,
         }
     return out

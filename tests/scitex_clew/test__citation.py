@@ -202,6 +202,35 @@ class TestCitationExitCodes:
         assert sev[codes.CITATION_STUB] == codes.Severity.ERROR
 
 
+# --- link resolution (render contract) --------------------------------------
+
+
+class TestCitationLink:
+    def test_verified_key_link_is_doi_resolver(self, isolated_db):
+        # Arrange
+        clew.add_citation("Berens2009", doi="10.1/x")
+        # Act
+        result = clew.verify_citations([{"key": "Berens2009", "doi": "10.1/x"}])
+        # Assert
+        assert result["Berens2009"]["link"] == "https://doi.org/10.1/x"
+
+    def test_scholar_url_overrides_doi_link(self, isolated_db):
+        # Arrange
+        clew.add_citation("Corpus1", url="https://semanticscholar.org/CorpusID:42")
+        # Act
+        result = clew.verify_citations([{"key": "Corpus1"}])
+        # Assert
+        assert result["Corpus1"]["link"] == "https://semanticscholar.org/CorpusID:42"
+
+    def test_unknown_key_link_is_none(self, isolated_db):
+        # Arrange
+        entry = {"key": "Ghost"}
+        # Act
+        result = clew.verify_citations([entry])
+        # Assert
+        assert result["Ghost"]["link"] is None
+
+
 # --- list_citations ---------------------------------------------------------
 
 

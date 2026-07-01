@@ -29,6 +29,7 @@ def register_tools(mcp: FastMCP) -> None:
         doi: Optional[str] = None,
         source_id: Optional[str] = None,
         metadata: Optional[dict] = None,
+        url: Optional[str] = None,
         is_stub: bool = False,
         resolved: bool = True,
     ) -> str:
@@ -52,6 +53,9 @@ def register_tools(mcp: FastMCP) -> None:
             Scholar's internal source identifier.
         metadata : dict, optional
             Bib fields (author/year/title/journal/doi) for the content hash.
+        url : str, optional
+            Explicit source URL (takes precedence over the derived doi.org
+            link — supply for no-DOI CorpusId-only records).
         is_stub : bool, optional
             True if scholar flagged this as a stub / placeholder.
         resolved : bool, optional
@@ -67,6 +71,7 @@ def register_tools(mcp: FastMCP) -> None:
                 doi=doi,
                 source_id=source_id,
                 metadata=metadata,
+                url=url,
                 is_stub=is_stub,
                 resolved=resolved,
             )

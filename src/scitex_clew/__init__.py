@@ -30,7 +30,7 @@ Public API::
     # Citations (\\cite -> scholar-verified source gate)
     clew.add_citation(...)             # register (push) a scholar-resolved cite
     clew.list_citations(...)           # list registered citation nodes
-    clew.verify_citations(entries)     # per-key {status,doi,source_id,reason}
+    clew.verify_citations(entries)     # per-key {status,doi,source_id,link,reason}
     clew.verify_all_citations(entries) # fail-loud VerificationResult (same-run)
 
     # Stamping

@@ -22,6 +22,23 @@ STUB_JOURNAL_MARKER = "Pending scitex-scholar metadata lookup"
 METADATA_FIELDS = ("doi", "journal", "title", "author", "year", "note")
 
 
+def resolve_link(url: Optional[str], doi: Optional[str]) -> Optional[str]:
+    """Resolve a citation's source URL for rendering an href.
+
+    Precedence: an explicit scholar-supplied ``url`` (needed for no-DOI cases
+    like SemanticScholar CorpusId-only records) wins; otherwise the universal
+    DOI resolver ``https://doi.org/<doi>`` (which correctly handles arXiv
+    ``10.48550/arXiv.*`` and DataCite DOIs); otherwise None. Kept here so every
+    renderer (LaTeX / HTML / notebook) consumes the same link, never
+    reconstructs URLs.
+    """
+    if url and str(url).strip():
+        return str(url).strip()
+    if doi and str(doi).strip():
+        return f"https://doi.org/{str(doi).strip()}"
+    return None
+
+
 @dataclass
 class Citation:
     """A manuscript ``\\cite`` key linked to a scholar-resolved source."""
@@ -35,6 +52,7 @@ class Citation:
     is_stub: bool
     status: str
     metadata_hash: Optional[str]
+    url: Optional[str] = None
     registered_at: Optional[str] = None
     verified_at: Optional[str] = None
 
@@ -44,6 +62,11 @@ class Citation:
         if self.manuscript_file and self.line_number:
             return f"{self.manuscript_file}:L{self.line_number}"
         return self.manuscript_file or self.cite_key
+
+    @property
+    def link(self) -> Optional[str]:
+        """Resolved source URL for rendering an href (None if unavailable)."""
+        return resolve_link(self.url, self.doi)
 
     def to_dict(self) -> Dict:
         return {
@@ -56,6 +79,8 @@ class Citation:
             "is_stub": self.is_stub,
             "status": self.status,
             "metadata_hash": self.metadata_hash,
+            "url": self.url,
+            "link": self.link,
             "registered_at": self.registered_at,
             "verified_at": self.verified_at,
         }
@@ -73,6 +98,7 @@ class Verdict(NamedTuple):
     code: int
     doi: Optional[str]
     source_id: Optional[str]
+    link: Optional[str]
     reason: str
 
 
@@ -94,6 +120,7 @@ def migrate_add_citations_table(db_path: Path) -> None:
                 status TEXT NOT NULL,
                 metadata_json TEXT,
                 metadata_hash TEXT,
+                url TEXT,
                 registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 verified_at TIMESTAMP
             )
@@ -106,6 +133,11 @@ def migrate_add_citations_table(db_path: Path) -> None:
             "CREATE INDEX IF NOT EXISTS idx_citations_manuscript "
             "ON citations(manuscript_file)"
         )
+        # Idempotent: add url to any pre-existing citations table (branch DBs
+        # created before the link field landed).
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(citations)").fetchall()}
+        if "url" not in cols:
+            conn.execute("ALTER TABLE citations ADD COLUMN url TEXT")
         conn.commit()
     finally:
         conn.close()
@@ -126,6 +158,7 @@ def row_to_citation(row) -> Citation:
         is_stub=bool(row["is_stub"]),
         status=row["status"],
         metadata_hash=row["metadata_hash"],
+        url=row["url"] if "url" in row.keys() else None,
         registered_at=row["registered_at"],
         verified_at=row["verified_at"],
     )

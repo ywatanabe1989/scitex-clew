@@ -14,6 +14,7 @@ from ._model import (
     STUB_NOTE_MARKER,
     Citation,
     Verdict,
+    resolve_link,
 )
 
 
@@ -96,6 +97,7 @@ def classify_entry(record: Optional[Citation], entry: Dict) -> Verdict:
     )
 
     if record is not None:
+        rec_link = resolve_link(record.url, record.doi)
         # Scholar is authoritative. Check for drift first: the DOI is the
         # source identity, so if the cited entry now carries a DIFFERENT DOI
         # than scholar registered, the reference was edited to point at another
@@ -110,6 +112,7 @@ def classify_entry(record: Optional[Citation], entry: Dict) -> Verdict:
                 code=HASH_MISMATCH,
                 doi=record.doi,
                 source_id=record.source_id,
+                link=rec_link,
                 reason=(
                     "cited DOI differs from scholar-registered DOI "
                     "(reference changed since registration)"
@@ -121,6 +124,7 @@ def classify_entry(record: Optional[Citation], entry: Dict) -> Verdict:
                 code=OK,
                 doi=record.doi,
                 source_id=record.source_id,
+                link=rec_link,
                 reason="scholar-verified real source (DOI resolved)",
             )
         if record.status == "stub":
@@ -129,6 +133,7 @@ def classify_entry(record: Optional[Citation], entry: Dict) -> Verdict:
                 code=CITATION_STUB,
                 doi=record.doi,
                 source_id=record.source_id,
+                link=rec_link,
                 reason="scholar flagged as a stub / placeholder reference",
             )
         return Verdict(
@@ -136,6 +141,7 @@ def classify_entry(record: Optional[Citation], entry: Dict) -> Verdict:
             code=CITATION_UNRESOLVED,
             doi=record.doi,
             source_id=record.source_id,
+            link=rec_link,
             reason="registered but not resolved to a real source yet",
         )
 
@@ -150,9 +156,11 @@ def classify_entry(record: Optional[Citation], entry: Dict) -> Verdict:
             code=CITATION_UNLINKED,
             doi=None,
             source_id=None,
+            link=None,
             reason="no clew citation node and no bib metadata for this key",
         )
 
+    entry_link = resolve_link(None, entry.get("doi"))
     stub_reason = local_stub_reason(entry)
     if stub_reason:
         return Verdict(
@@ -160,6 +168,7 @@ def classify_entry(record: Optional[Citation], entry: Dict) -> Verdict:
             code=CITATION_STUB,
             doi=entry.get("doi"),
             source_id=None,
+            link=entry_link,
             reason=f"local stub heuristic ({stub_reason})",
         )
     return Verdict(
@@ -167,6 +176,7 @@ def classify_entry(record: Optional[Citation], entry: Dict) -> Verdict:
         code=CITATION_UNRESOLVED,
         doi=entry.get("doi"),
         source_id=None,
+        link=entry_link,
         reason="present in bib but not scholar-registered",
     )
 
