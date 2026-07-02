@@ -118,7 +118,7 @@ class TestIngest:
         # Assert
         assert n == 1
 
-    def test_idempotent_upsert(self, isolated_db):
+    def test_reingesting_same_key_is_idempotent(self, isolated_db):
         # Arrange
         obj = _artifact({"cite_key": "Berens2009", "doi": "10.1/x"})
         ingest_citations_artifact(obj)
